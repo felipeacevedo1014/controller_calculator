@@ -170,7 +170,7 @@ class GUI():
         self.table.heading("Total Price", text="Total Price")
         self.table.heading("Total Width", text="Total Width")
         self.table.grid(row=0, column=0, sticky="nsew")
-
+        #comment here
     
     def process_input(self):
         try:
