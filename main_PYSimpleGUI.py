@@ -120,14 +120,14 @@ class GUI:
                      [sg.CB("Include XM90",default=True),sg.CB("Include XM70",default=True),sg.CB("Include XM30",default=True),sg.CB("Include XM32",default=True)],
                      [sg.B("Calculate"),sg.Cancel()]
                     ]
-        
+
     def create_window(self):
         # Create the Window
         window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,margins=(200,100),resizable=True)
         while True:
             event,values=window.read()
             print(event,values)
-            if event == sg.WIN_CLOSED or event == "Cancel":
+            if event in (sg.WIN_CLOSED,"Cancel"):
                 break
             if event=="Calculate":
                 self.system_points={
@@ -157,9 +157,7 @@ def main():
     expansions=[xm90,xm70,xm30,xm32]
 
     app=GUI()
-    gui_thread = threading.Thread(target=app.create_window)
-    gui_thread.start()
-    #app.create_window()
+    app.create_window()
     system_points=app.get_system_points()[0]
     if app.get_system_points()[1]=="S500":
         system_controller=s500
