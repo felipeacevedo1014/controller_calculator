@@ -169,6 +169,8 @@ class GUI():
         self.table.heading("XM32", text="XM32")
         self.table.heading("Total Price", text="Total Price")
         self.table.heading("Total Width", text="Total Width")
+        self.table.grid(row=0, column=0, sticky="nsew")
+
     
     def process_input(self):
         try:
