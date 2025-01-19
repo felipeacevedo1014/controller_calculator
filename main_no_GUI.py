@@ -35,9 +35,9 @@ class System:
     def find_combinations(self):
         total_combinations=[]
         max_xm90=5
-        max_xm70=7
-        max_xm30=34
-        max_xm32=34
+        max_xm70=0
+        max_xm30=0
+        max_xm32=0
         for counts in product(range(max_xm90+1),range(max_xm70+1),range(max_xm30+1),range(max_xm32+1)): #Get all the possible options of expansions in a list of tuples
             combination={self.expansions[0]:counts[0],self.expansions[1]:counts[1],self.expansions[2]:counts[2],self.expansions[3]:counts[3]} #Create a dict with the quantity of each expansion
             combination_points=self.get_combination_points(combination) #get a dictionary with the total points per key
@@ -118,7 +118,7 @@ def main():
     xm32=Controller(name="XM32",price=320,power_DC=100,width=2.82,BO=4)
     expansions=[xm90,xm70,xm30,xm32]
     #Define system points
-    system_points={"BO":20,"BI":0,"UI":25,"AO":6,"AI":2,"pressure":1}
+    system_points={"BO":5,"BI":5,"UI":5,"AO":5,"AI":5,"pressure":1}
     chws=System(system_points,uc600,expansions)
     #Run Calculations
     print("Combinations:\n")

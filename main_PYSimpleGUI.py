@@ -3,7 +3,6 @@ from itertools import product,permutations
 import PySimpleGUI as sg
 import threading
 
-
 class Controller:
     def __init__(self,name,price=0,power_AC=0,power_DC=0,width=0,UI=0,UIAO=0,BO=0,AI=0,BI=0,BIAO=0,pressure=0,max_point_capacity=0):
         self.name=name
@@ -30,18 +29,15 @@ class Controller:
                 "pressure":self.pressure*quantity}
     
 class System:
-    def __init__(self,system_points,system_controller,expansions_list):
+    def __init__(self,system_points,system_controller,expansions_list,expansions_max):
         self.system_points=system_points
         self.system_controller=system_controller
         self.expansions=expansions_list
+        self.expansions_max=expansions_max
     
     def find_combinations(self):
         total_combinations=[]
-        max_xm90=5
-        max_xm70=7
-        max_xm30=34
-        max_xm32=34
-        for counts in product(range(max_xm90+1),range(max_xm70+1),range(max_xm30+1),range(max_xm32+1)): #Get all the possible options of expansions in a list of tuples
+        for counts in product(range(self.expansions_max[0]+1),range(self.expansions_max[1]+1),range(self.expansions_max[2]+1),range(self.expansions_max[3]+1)): #Get all the possible options of expansions in a list of tuples
             combination={self.expansions[0]:counts[0],self.expansions[1]:counts[1],self.expansions[2]:counts[2],self.expansions[3]:counts[3]} #Create a dict with the quantity of each expansion
             combination_points=self.get_combination_points(combination) #get a dictionary with the total points per key
             if self.valid_combination(combination_points): #Verify if those total points meet the system requirements
@@ -111,37 +107,51 @@ class Enclosure:
 
 class GUI:
     def __init__(self):
-        self.layout = [
-                    [sg.Text("Insert System Points",font=("Calibri",14),justification="center",expand_x=True)],
+        self.frame_system=sg.Frame("System Points",[
                     [sg.Text("BO:"),sg.InputText(default_text="5",size=(3),key="BO"),sg.Text("BI:"),sg.InputText(default_text="5",size=(3),key="BI"),
                      sg.Text("UI:"),sg.InputText(default_text="5",size=(3),key="UI"),sg.Text("AI:"),sg.InputText(default_text="5",size=(3),key="AI"),
                      sg.Text("AO:"),sg.InputText(default_text="5",size=(3),key="AO"),sg.Text("Pressure:"),sg.InputText(default_text="0",size=(2),key="pressure")],
                      [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller")],
-                     [sg.CB("Include XM90",default=True),sg.CB("Include XM70",default=True),sg.CB("Include XM30",default=True),sg.CB("Include XM32",default=True)],
-                     [sg.B("Calculate"),sg.Cancel()]
-                    ]
+                     [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]])
+        self.frame_results=sg.Frame("Results",[
+                    [sg.Table(values=[],headings=["Item","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],justification="center",key="results_table",expand_x=True,enable_events=True,enable_click_events=True)],
+                    ])
+        self.tab_system=[[self.frame_system],
+                     [sg.B("Calculate"),sg.Cancel()],
+                     [self.frame_results],
+                     [sg.B("Save CSV"),sg.B("Calculate Enclosures",key="bt_enclosures",visible=False)]]
+        self.tab_multiple=[[sg.Frame("Load File",[
+                        [sg.B("Open")]
+        ])]]
+        self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple)]])
+                    ]]
 
     def create_window(self):
         # Create the Window
-        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,margins=(200,100),resizable=True)
-        while True:
-            event,values=window.read()
-            print(event,values)
-            if event in (sg.WIN_CLOSED,"Cancel"):
-                break
-            if event=="Calculate":
-                self.system_points={
-                    "BO":int(values["BO"]),
-                    "BI":int(values["BI"]),
-                    "UI":int(values["UI"]),
-                    "AO":int(values["AO"]),
-                    "AI":int(values["AI"]),
-                    "pressure":int(values["pressure"])}  
-                self.controller=values["controller"]          
-        window.close()
+        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,margins=(60,20),resizable=False)
+        return window
 
     def get_system_points(self):
         return self.system_points,self.controller
+
+def run_calculations(window,system_points, system_controller, expansions_list,expansions_max):
+    #system_points={"BO":20,"BI":0,"UI":25,"AO":30,"AI":2,"pressure":1}
+    chws=System(system_points,system_controller,expansions_list,expansions_max)
+    print("Combinations:\n")
+    results=chws.find_combinations()
+    results.reset_index(inplace=True)
+    def convert_to_int(results):
+        formatted_data=[]
+        for row in results.values.tolist():
+            formatted_row=[]
+            for index,item in enumerate(row):
+                if index<5:
+                    formatted_row.append(int(item))
+                else: 
+                    formatted_row.append(item)
+            formatted_data.append(formatted_row)
+        return formatted_data
+    window["results_table"].update(values=convert_to_int(results))
 
 
 def main():
@@ -154,24 +164,40 @@ def main():
     xm70=Controller(name="XM70",price=700,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1)
     xm30=Controller(name="XM30",price=300,power_DC=120,width=2.11,UIAO=4)
     xm32=Controller(name="XM32",price=320,power_DC=100,width=2.82,BO=4)
-    expansions=[xm90,xm70,xm30,xm32]
-
+    expansions_list=[xm90,xm70,xm30,xm32]
+    expansions_max_default=[5,7,34,34]
+    expansions_max=[0,0,0,0]
     app=GUI()
-    app.create_window()
-    system_points=app.get_system_points()[0]
-    if app.get_system_points()[1]=="S500":
-        system_controller=s500
-    else:
-        system_controller=uc600
+    window=app.create_window()
+    while True:
+        event,values=window.read()
+        print(event,values)        
+        if event in (sg.WIN_CLOSED,"Cancel"):
+            break
+        if "Calculate" in event:
+            system_points={
+            "BO":int(values["BO"]),
+            "BI":int(values["BI"]),
+            "UI":int(values["UI"]),
+            "AO":int(values["AO"]),
+            "AI":int(values["AI"]),
+            "pressure":int(values["pressure"])}  
+            system_controller=s500 if values["controller"]=="S500" else uc600
+            expansions_max[0]=0 if values["inc_XM90"]==False else expansions_max_default[0]
+            expansions_max[1]=0 if values["inc_XM70"]==False else expansions_max_default[1]
+            expansions_max[2]=0 if values["inc_XM30"]==False else expansions_max_default[2]
+            expansions_max[3]=0 if values["inc_XM32"]==False else expansions_max_default[3]
+
+            threading.Thread(target=run_calculations, args=(window,system_points, system_controller, expansions_list,expansions_max), daemon=True).start() 
+        if "+CLICKED+" in event:
+            window["bt_enclosures"].update(visible=True)
+    window.close()
+
     #Define system points
-    #system_points={"BO":20,"BI":0,"UI":25,"AO":30,"AI":2,"pressure":1}
-    chws=System(system_points,system_controller,expansions)
-    #Run Calculations
-    print("Combinations:\n")
-    results=chws.find_combinations()
+
     #Initialize Enclosures
-    enc_24in=Enclosure(rail_qty=2,rail_size=14.88,tx_qty=2)
-    enc_16in=Enclosure(rail_qty=1,rail_size=12,tx_qty=1)
+    #enc_24in=Enclosure(rail_qty=2,rail_size=14.88,tx_qty=2)
+    #enc_16in=Enclosure(rail_qty=1,rail_size=12,tx_qty=1)
     #chws.find_enclosures([enc_16in,enc_24in],results.loc[0])
 
 
