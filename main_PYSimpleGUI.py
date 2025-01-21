@@ -2,6 +2,7 @@ import pandas as pd
 from itertools import product,permutations
 import PySimpleGUI as sg
 import threading
+import math
 
 class Controller:
     def __init__(self,name,price=0,power_AC=0,power_DC=0,width=0,UI=0,UIAO=0,BO=0,AI=0,BI=0,BIAO=0,pressure=0,max_point_capacity=0):
@@ -29,11 +30,12 @@ class Controller:
                 "pressure":self.pressure*quantity}
     
 class System:
-    def __init__(self,system_points,system_controller,expansions_list,expansions_max):
+    def __init__(self,system_points,system_controller,expansions_list,expansions_max,include_pm014):
         self.system_points=system_points
         self.system_controller=system_controller
         self.expansions=expansions_list
         self.expansions_max=expansions_max
+        self.include_pm014=include_pm014
     
     def find_combinations(self):
         total_combinations=[]
@@ -43,6 +45,12 @@ class System:
             if self.valid_combination(combination_points): #Verify if those total points meet the system requirements
                 price=self.expansions[0].price*counts[0]+self.expansions[1].price*counts[1]+self.expansions[2].price*counts[2]+self.expansions[3].price*counts[3]
                 width=self.expansions[0].width*counts[0]+self.expansions[1].width*counts[1]+self.expansions[2].width*counts[2]+self.expansions[3].width*counts[3]
+                if self.include_pm014==True:
+                    total_xm30_32=counts[2]+counts[3]
+                    total_xm90_70=counts[0]+counts[1]
+                    qty_pm014=math.ceil((total_xm30_32-2*total_xm90_70-2)/10)
+                    print(qty_pm014)
+                    ##10 is the max ammount of expansiones the pm014 can power
                 combination["Total Price"]=price
                 combination["Total Width"]=width
                 total_combinations.append(combination) #If True add the combination to the results
@@ -114,45 +122,68 @@ class GUI:
                      [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller")],
                      [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]])
         self.frame_results=sg.Frame("Results",[
-                    [sg.Table(values=[],headings=["Item","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],justification="center",key="results_table",expand_x=True,enable_events=True,enable_click_events=True)],
+                    [sg.Table(values=[],headings=["Combination","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False,)],
                     ])
         self.tab_system=[[self.frame_system],
-                     [sg.B("Calculate"),sg.Cancel()],
+                     [sg.B("Calculate"),sg.B("Exit",key="Exit")],
                      [self.frame_results],
-                     [sg.B("Save CSV"),sg.B("Calculate Enclosures",key="bt_enclosures",visible=False)]]
+                     [sg.B("Save Results",key="-Save_System-",visible=False),sg.B("Calculate Enclosures",key="bt_enclosures",visible=False)]]
         self.tab_multiple=[[sg.Frame("Load File",[
-                        [sg.B("Open")]
+                        [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="Building_controller")],
+                        [sg.CB("Include XM90",default=True,key="Building_inc_XM90"),sg.CB("Include XM70",default=True,key="Building_inc_XM70"),sg.CB("Include XM30",default=True,key="Building_inc_XM30"),sg.CB("Include XM32",default=True,key="Building_inc_XM32")],
+                        [sg.FileBrowse("Open Points",file_types=(("CSV Files","*.csv")),key="-File-"),sg.B("Calculate",key="-Calculate_Building-")],
+                        [sg.Table(values=[],headings=["System Name","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],num_rows=6,justification="center",key="-Building_points-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False,)],
+                        ])],
+                        [sg.Frame("Results",[
+                        [sg.Table(values=[],headings=["System Name","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],num_rows=6,justification="center",key="-Building_Results-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False)],
+                        [sg.B("Save Results",key="-Save_building-",visible=True)]
+                        ])]]
+        self.prices=[1100,1000,600,500,400,300]
+        self.col1=[[sg.Text("S500")],[sg.Text("UC600")],[sg.Text("XM90")],[sg.Text("XM70")],[sg.Text("XM30")],[sg.Text("XM32")]]
+        self.col2=[[sg.Input(default_text=self.prices[0],key="S500_price",size=10)],
+                   [sg.Input(default_text=self.prices[1],key="UC600_price",size=10)],
+                   [sg.Input(default_text=self.prices[2],key="XM90_price",size=10)],
+                   [sg.Input(default_text=self.prices[3],key="XM70_price",size=10)],
+                   [sg.Input(default_text=self.prices[4],key="XM30_price",size=10)],
+                   [sg.Input(default_text=self.prices[5],key="XM32_price",size=10)]
+                   ]
+        self.tab_settings=[[sg.Frame("Prices",[
+                        [sg.Col(self.col1),sg.Col(self.col2)]
         ])]]
-        self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple)]])
+        self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple),sg.Tab("Settings",self.tab_settings)]])
                     ]]
 
     def create_window(self):
         # Create the Window
-        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,margins=(60,20),resizable=False)
+        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,resizable=False,size=(480,360))
         return window
 
     def get_system_points(self):
         return self.system_points,self.controller
 
-def run_calculations(window,system_points, system_controller, expansions_list,expansions_max):
+def run_calculations(window,system_points, system_controller, expansions_list,expansions_max,include_pm014):
     #system_points={"BO":20,"BI":0,"UI":25,"AO":30,"AI":2,"pressure":1}
-    chws=System(system_points,system_controller,expansions_list,expansions_max)
-    print("Combinations:\n")
-    results=chws.find_combinations()
-    results.reset_index(inplace=True)
-    def convert_to_int(results):
-        formatted_data=[]
-        for row in results.values.tolist():
-            formatted_row=[]
-            for index,item in enumerate(row):
-                if index<5:
-                    formatted_row.append(int(item))
-                else: 
-                    formatted_row.append(item)
-            formatted_data.append(formatted_row)
-        return formatted_data
-    window["results_table"].update(values=convert_to_int(results))
-
+    try:
+        chws=System(system_points,system_controller,expansions_list,expansions_max,include_pm014)
+        print("Combinations:\n")
+        results=chws.find_combinations()
+        results.reset_index(inplace=True)
+        def convert_to_int(results):
+            formatted_data=[]
+            for row in results.values.tolist():
+                formatted_row=[]
+                for index,item in enumerate(row):
+                    if index<5:
+                        formatted_row.append(int(item))
+                    else: 
+                        formatted_row.append(item)
+                    if index==0:
+                        formatted_row[0]+=1
+                formatted_data.append(formatted_row)
+            return formatted_data
+        window["results_table"].update(values=convert_to_int(results))
+    except Exception as e:
+        sg.popup_error("Combination not found! ")
 
 def main():
     print("\nTrane Technologies")
@@ -164,6 +195,7 @@ def main():
     xm70=Controller(name="XM70",price=700,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1)
     xm30=Controller(name="XM30",price=300,power_DC=120,width=2.11,UIAO=4)
     xm32=Controller(name="XM32",price=320,power_DC=100,width=2.82,BO=4)
+    pm014=Controller(name="PM014",price=200,power_AC=20,width=5)
     expansions_list=[xm90,xm70,xm30,xm32]
     expansions_max_default=[5,7,34,34]
     expansions_max=[0,0,0,0]
@@ -172,25 +204,58 @@ def main():
     while True:
         event,values=window.read()
         print(event,values)        
-        if event in (sg.WIN_CLOSED,"Cancel"):
+        if event == sg.WIN_CLOSED:
             break
+        if event == "Exit":
+            if sg.popup_yes_no("Do you want to exit")=="Yes":
+                exit()
         if "Calculate" in event:
-            system_points={
-            "BO":int(values["BO"]),
-            "BI":int(values["BI"]),
-            "UI":int(values["UI"]),
-            "AO":int(values["AO"]),
-            "AI":int(values["AI"]),
-            "pressure":int(values["pressure"])}  
-            system_controller=s500 if values["controller"]=="S500" else uc600
-            expansions_max[0]=0 if values["inc_XM90"]==False else expansions_max_default[0]
-            expansions_max[1]=0 if values["inc_XM70"]==False else expansions_max_default[1]
-            expansions_max[2]=0 if values["inc_XM30"]==False else expansions_max_default[2]
-            expansions_max[3]=0 if values["inc_XM32"]==False else expansions_max_default[3]
-
-            threading.Thread(target=run_calculations, args=(window,system_points, system_controller, expansions_list,expansions_max), daemon=True).start() 
+            try:
+                system_points={
+                "BO":int(values["BO"]),
+                "BI":int(values["BI"]),
+                "UI":int(values["UI"]),
+                "AO":int(values["AO"]),
+                "AI":int(values["AI"]),
+                "pressure":int(values["pressure"])}  
+                include_pm014=True
+                system_controller=s500 if values["controller"]=="S500" else uc600
+                expansions_max[0]=0 if values["inc_XM90"]==False else expansions_max_default[0]
+                expansions_max[1]=0 if values["inc_XM70"]==False else expansions_max_default[1]
+                expansions_max[2]=0 if values["inc_XM30"]==False else expansions_max_default[2]
+                expansions_max[3]=0 if values["inc_XM32"]==False else expansions_max_default[3]
+                threading.Thread(target=run_calculations, args=(window,system_points, system_controller, expansions_list,expansions_max,include_pm014), daemon=True).start() 
+                window["-Save_System-"].update(visible=True)
+            except Exception as e:
+                sg.popup_error("Enter a valid input: ",e)
         if "+CLICKED+" in event:
             window["bt_enclosures"].update(visible=True)
+        if "-Save_System-" in event:
+            file_name=sg.popup_get_file("Save As",save_as=True,no_window=True,file_types=(("CSV File","*.csv"),("Excel File","*.xlsx")))
+            if file_name:
+                print(file_name)
+                try:
+                    table_values=window["results_table"].Values
+                    data=pd.DataFrame(table_values,columns=["Combination","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"])
+                    if file_name.endswith(".csv"):
+                        data.to_csv(file_name)
+                        sg.popup("Results saved succesfully!")
+                    elif file_name.endswith(".xlsx"):
+                        data.to_excel(file_name,index=False)
+                        sg.popup("Results saved succesfully!")
+                    else: 
+                        file_name+=".csv"
+                        data.to_csv(file_name)
+                        sg.popup("Results saved succesfully!")
+                except Exception as e:
+                    sg.popup_error("Error saving the results: ",e)
+        if "-File-" in event:
+            file_path=values["-File-"]
+            if file_path:
+                try:
+                    pass
+                except Exception as e:
+                    sg.popup_error("Error loading the file: ",e)
     window.close()
 
     #Define system points
@@ -203,6 +268,11 @@ def main():
 
 if __name__=="__main__":
     main()
+
+    ##Add soare points
+    #Add PM14 in prices calculations
+    #Add limit points
+    #Add error handleng for inputs
 
 
 
