@@ -49,7 +49,7 @@ class System:
                     total_xm30_32=counts[2]+counts[3]
                     total_xm90_70=counts[0]+counts[1]
                     qty_pm014=math.ceil((total_xm30_32-2*total_xm90_70-2)/10)
-                    print(qty_pm014)
+                    #print(qty_pm014)
                     ##10 is the max ammount of expansiones the pm014 can power
                 combination["Total Price"]=price
                 combination["Total Width"]=width
@@ -122,7 +122,7 @@ class GUI:
                      [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller")],
                      [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]])
         self.frame_results=sg.Frame("Results",[
-                    [sg.Table(values=[],headings=["Combination","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False,)],
+                    [sg.Table(values=[],headings=["Combination","XM90","XM70","XM30","XM32","Price","Width [in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[8,6,6,6,6,8,8],auto_size_columns=False,)],
                     ])
         self.tab_system=[[self.frame_system],
                      [sg.B("Calculate"),sg.B("Exit",key="Exit")],
@@ -155,7 +155,7 @@ class GUI:
 
     def create_window(self):
         # Create the Window
-        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,resizable=False,size=(480,360))
+        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,resizable=False,size=(520,420))
         return window
 
     def get_system_points(self):
