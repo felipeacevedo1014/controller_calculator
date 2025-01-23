@@ -51,8 +51,8 @@ class System:
                     qty_pm014=math.ceil((total_xm30_32-2*total_xm90_70-2)/10)
                     #print(qty_pm014)
                     ##10 is the max ammount of expansiones the pm014 can power
-                combination["Total Price"]=price
-                combination["Total Width"]=width
+                combination["Total Price"]=round((price+self.system_controller.price),2)
+                combination["Total Width"]=round((width+self.system_controller.width),2)
                 total_combinations.append(combination) #If True add the combination to the results
         sorted=self.filter_combinations(total_combinations) #Filter all the possible combinations to eliminate redundant options
         return sorted
@@ -189,13 +189,13 @@ def main():
     print("\nTrane Technologies")
     print("Controller/Expansions Calculator")
     #Initialize devices
-    uc600=Controller(name="UC600",price=1500,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1,max_point_capacity=120)
-    s500=Controller(name="S500",price=1300,power_AC=24,width=5.65,AI=5,UI=2,BI=3,BO=9,BIAO=2,pressure=2,max_point_capacity=133)
-    xm90=Controller(name="XM90",price=900,power_AC=50,width=8.5,UI=16,UIAO=8,BO=8)
-    xm70=Controller(name="XM70",price=700,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1)
-    xm30=Controller(name="XM30",price=300,power_DC=120,width=2.11,UIAO=4)
-    xm32=Controller(name="XM32",price=320,power_DC=100,width=2.82,BO=4)
-    pm014=Controller(name="PM014",price=200,power_AC=20,width=5)
+    uc600=Controller(name="UC600",price=955.04,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1,max_point_capacity=120)
+    s500=Controller(name="S500",price=436.72,power_AC=24,width=5.65,AI=5,UI=2,BI=3,BO=9,BIAO=2,pressure=2,max_point_capacity=133)
+    xm90=Controller(name="XM90",price=1116.25,power_AC=50,width=8.5,UI=16,UIAO=8,BO=8)
+    xm70=Controller(name="XM70",price=908.01,power_AC=26,width=8.5,UI=8,UIAO=6,BO=4,pressure=1)
+    xm30=Controller(name="XM30",price=290.16,power_DC=120,width=2.11,UIAO=4)
+    xm32=Controller(name="XM32",price=290.16,power_DC=100,width=2.82,BO=4)
+    pm014=Controller(name="PM014",price=198.31,power_AC=20,width=5)
     expansions_list=[xm90,xm70,xm30,xm32]
     expansions_max_default=[5,7,34,34]
     expansions_max=[0,0,0,0]
