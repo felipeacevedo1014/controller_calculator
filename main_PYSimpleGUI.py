@@ -30,12 +30,13 @@ class Controller:
                 "pressure":self.pressure*quantity}
     
 class System:
-    def __init__(self,system_points,system_controller,expansions_list,expansions_max,include_pm014):
+    def __init__(self,system_points,system_controller,expansions_list,expansions_max,pm014,include_pm014):
         self.system_points=system_points
         self.system_controller=system_controller
         self.expansions=expansions_list
         self.expansions_max=expansions_max
         self.include_pm014=include_pm014
+        self.pm014=pm014
     
     def find_combinations(self):
         total_combinations=[]
@@ -45,14 +46,14 @@ class System:
             if self.valid_combination(combination_points): #Verify if those total points meet the system requirements
                 price=self.expansions[0].price*counts[0]+self.expansions[1].price*counts[1]+self.expansions[2].price*counts[2]+self.expansions[3].price*counts[3]
                 width=self.expansions[0].width*counts[0]+self.expansions[1].width*counts[1]+self.expansions[2].width*counts[2]+self.expansions[3].width*counts[3]
-                if self.include_pm014==True:
+                if self.include_pm014==True: #Calculations in user wants to include the PM014
                     total_xm30_32=counts[2]+counts[3]
                     total_xm90_70=counts[0]+counts[1]
-                    qty_pm014=math.ceil((total_xm30_32-2*total_xm90_70-2)/10)
-                    #print(qty_pm014)
-                    ##10 is the max ammount of expansiones the pm014 can power
-                combination["Total Price"]=round((price+self.system_controller.price),2)
-                combination["Total Width"]=round((width+self.system_controller.width),2)
+                    qty_pm014=max(0,math.ceil((total_xm30_32-(2*total_xm90_70)-2)/11)) #each controller, XM70 or XM90 can power 2 XM30/32. so if there are more we need PM014
+                    ##11 is the max ammount of expansiones the pm014 can power up
+                combination["PM014"]=qty_pm014
+                combination["Total Price"]=round((price+self.system_controller.price+(self.pm014.price)*qty_pm014),2)
+                combination["Total Width"]=round((width+self.system_controller.width+(self.pm014.width)*qty_pm014),2)
                 total_combinations.append(combination) #If True add the combination to the results
         sorted=self.filter_combinations(total_combinations) #Filter all the possible combinations to eliminate redundant options
         return sorted
@@ -79,7 +80,7 @@ class System:
 
     def filter_combinations(self,total_combinations_dict):
         total_combinations_df=pd.DataFrame(total_combinations_dict) #Convert dictionary of Dataframe
-        total_combinations_df.columns=["XM90","XM70","XM30","XM32","Total Price","Total Width"] 
+        total_combinations_df.columns=["XM90","XM70","XM30","XM32","PM014","Total Price","Total Width"] 
         #total_combinations_df["Notes"]=None
         filter_order=list(permutations(["XM90","XM70","XM30","XM32"])) #Create a list with all the possible filter orders
         filetered_combinations=[]
@@ -119,7 +120,7 @@ class GUI:
                     [sg.Text("BO:"),sg.InputText(default_text="5",size=(3),key="BO"),sg.Text("BI:"),sg.InputText(default_text="5",size=(3),key="BI"),
                      sg.Text("UI:"),sg.InputText(default_text="5",size=(3),key="UI"),sg.Text("AI:"),sg.InputText(default_text="5",size=(3),key="AI"),
                      sg.Text("AO:"),sg.InputText(default_text="5",size=(3),key="AO"),sg.Text("Pressure:"),sg.InputText(default_text="0",size=(2),key="pressure")],
-                     [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller")],
+                     [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller"),sg.Text("Spare Points [%]"),sg.Spin(values=list(range(0,100,1)),initial_value=0,key="-Spare_Points-",size=3)],
                      [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]])
         self.frame_results=sg.Frame("Results",[
                     [sg.Table(values=[],headings=["Combination","XM90","XM70","XM30","XM32","Price","Width [in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[8,6,6,6,6,8,8],auto_size_columns=False,)],
@@ -131,7 +132,7 @@ class GUI:
         self.tab_multiple=[[sg.Frame("Load File",[
                         [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="Building_controller")],
                         [sg.CB("Include XM90",default=True,key="Building_inc_XM90"),sg.CB("Include XM70",default=True,key="Building_inc_XM70"),sg.CB("Include XM30",default=True,key="Building_inc_XM30"),sg.CB("Include XM32",default=True,key="Building_inc_XM32")],
-                        [sg.FileBrowse("Open Points",file_types=(("CSV Files","*.csv")),key="-File-"),sg.B("Calculate",key="-Calculate_Building-")],
+                        [sg.FileBrowse("Open Points",file_types=(('CSV Files', '*.csv'),),key="-File-"),sg.B("Calculate",key="-Calculate_Building-")],
                         [sg.Table(values=[],headings=["System Name","XM90","XM70","XM30","XM32","Total Price","Total Width [in]"],num_rows=6,justification="center",key="-Building_points-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False,)],
                         ])],
                         [sg.Frame("Results",[
@@ -161,10 +162,10 @@ class GUI:
     def get_system_points(self):
         return self.system_points,self.controller
 
-def run_calculations(window,system_points, system_controller, expansions_list,expansions_max,include_pm014):
+def run_calculations(window,system_points, system_controller, expansions_list,expansions_max,pm014,include_pm014):
     #system_points={"BO":20,"BI":0,"UI":25,"AO":30,"AI":2,"pressure":1}
     try:
-        chws=System(system_points,system_controller,expansions_list,expansions_max,include_pm014)
+        chws=System(system_points,system_controller,expansions_list,expansions_max,pm014,include_pm014)
         print("Combinations:\n")
         results=chws.find_combinations()
         results.reset_index(inplace=True)
@@ -196,6 +197,8 @@ def main():
     xm30=Controller(name="XM30",price=290.16,power_DC=120,width=2.11,UIAO=4)
     xm32=Controller(name="XM32",price=290.16,power_DC=100,width=2.82,BO=4)
     pm014=Controller(name="PM014",price=198.31,power_AC=20,width=5)
+    uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=955.04,436.72,1116.25,908.01,290.16,290.16,198.31
+    #uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=30,30,20,20,10,10,5
     expansions_list=[xm90,xm70,xm30,xm32]
     expansions_max_default=[5,7,34,34]
     expansions_max=[0,0,0,0]
@@ -203,7 +206,7 @@ def main():
     window=app.create_window()
     while True:
         event,values=window.read()
-        print(event,values)        
+        #print(event,values)        
         if event == sg.WIN_CLOSED:
             break
         if event == "Exit":
@@ -212,26 +215,30 @@ def main():
         if "Calculate" in event:
             try:
                 system_points={
-                "BO":int(values["BO"]),
-                "BI":int(values["BI"]),
-                "UI":int(values["UI"]),
-                "AO":int(values["AO"]),
-                "AI":int(values["AI"]),
-                "pressure":int(values["pressure"])}  
+                "BO":math.ceil((int(values["BO"]))*(1+int(values["-Spare_Points-"])/100)),
+                "BI":math.ceil((int(values["BI"]))*(1+int(values["-Spare_Points-"])/100)),
+                "UI":math.ceil((int(values["UI"]))*(1+int(values["-Spare_Points-"])/100)),
+                "AO":math.ceil((int(values["AO"]))*(1+int(values["-Spare_Points-"])/100)),
+                "AI":math.ceil((int(values["AI"]))*(1+int(values["-Spare_Points-"])/100)),
+                "pressure":math.ceil((int(values["pressure"]))*(1+int(values["-Spare_Points-"])/100)),}
+                print(system_points)  
                 include_pm014=True
                 system_controller=s500 if values["controller"]=="S500" else uc600
                 expansions_max[0]=0 if values["inc_XM90"]==False else expansions_max_default[0]
                 expansions_max[1]=0 if values["inc_XM70"]==False else expansions_max_default[1]
                 expansions_max[2]=0 if values["inc_XM30"]==False else expansions_max_default[2]
                 expansions_max[3]=0 if values["inc_XM32"]==False else expansions_max_default[3]
-                threading.Thread(target=run_calculations, args=(window,system_points, system_controller, expansions_list,expansions_max,include_pm014), daemon=True).start() 
+                if sum(system_points.values())>system_controller.max_point_capacity:
+                   raise ValueError(f"The total system points {sum(system_points.values())} exceeds the controller capacity {system_controller.max_point_capacity}")
+                threading.Thread(target=run_calculations, args=(window,system_points, system_controller, expansions_list,expansions_max,pm014,include_pm014), daemon=True).start() 
                 window["-Save_System-"].update(visible=True)
             except Exception as e:
                 sg.popup_error("Enter a valid input: ",e)
+
         if "+CLICKED+" in event:
             window["bt_enclosures"].update(visible=True)
         if "-Save_System-" in event:
-            file_name=sg.popup_get_file("Save As",save_as=True,no_window=True,file_types=(("CSV File","*.csv"),("Excel File","*.xlsx")))
+            file_name=sg.popup_get_file("Save As",save_as=True,no_window=True,file_types=((("CSV File","*.csv"),),("Excel File","*.xlsx")))
             if file_name:
                 print(file_name)
                 try:
@@ -269,10 +276,7 @@ def main():
 if __name__=="__main__":
     main()
 
-    ##Add soare points
     #Add PM14 in prices calculations
-    #Add limit points
-    #Add error handleng for inputs
 
 
 
