@@ -296,11 +296,11 @@ def main():
                 try:
                     building_df=pd.read_excel(building_points_path)
                     include_pm014=True
-                    system_controller=s500 if values["controller"]=="S500" else uc600
-                    expansions_max[0]=0 if values["inc_XM90"]==False else expansions_max_default[0]
-                    expansions_max[1]=0 if values["inc_XM70"]==False else expansions_max_default[1]
-                    expansions_max[2]=0 if values["inc_XM30"]==False else expansions_max_default[2]
-                    expansions_max[3]=0 if values["inc_XM32"]==False else expansions_max_default[3]
+                    system_controller=s500 if values["Building_controller"]=="S500" else uc600
+                    expansions_max[0]=0 if values["Building_inc_XM90"]==False else expansions_max_default[0]
+                    expansions_max[1]=0 if values["Building_inc_XM70"]==False else expansions_max_default[1]
+                    expansions_max[2]=0 if values["Building_inc_XM30"]==False else expansions_max_default[2]
+                    expansions_max[3]=0 if values["Building_inc_XM32"]==False else expansions_max_default[3]
                     threading.Thread(target=run_building_calculations, args=(window,building_df, system_controller, expansions_list,expansions_max,pm014,include_pm014), daemon=True).start() 
                 except Exception as e:
                     sg.popup_error("Error calculating the building points: ",e)
@@ -339,6 +339,9 @@ def main():
 if __name__=="__main__":
     main()
 
+
+##Configure Settings
+##Add spares to the Multiple systems
 
 
 
