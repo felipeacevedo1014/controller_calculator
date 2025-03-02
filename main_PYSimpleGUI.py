@@ -223,8 +223,18 @@ def main():
     xm30=Controller(name="XM30",price=290.16,power_DC=120,width=2.11,UIAO=4)
     xm32=Controller(name="XM32",price=290.16,power_DC=100,width=2.82,BO=4)
     pm014=Controller(name="PM014",price=198.31,power_AC=20,width=5)
-    uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=955.04,436.72,1116.25,908.01,290.16,290.16,198.31
-    #uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=30,30,20,20,10,10,5
+    #uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=955.04,436.72,1116.25,908.01,290.16,290.16,198.31  #no updated prices
+    uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=30,30,20,20,10,10,5    
+    prices_url="https://github.com/felipeacevedo1014/controller_calculator/blob/54874096a194c8852c888a819188fe414f7b3eac/prices.xlsx"
+    def fetch_prices(prices_url):
+        try:
+            prices_df=pd.read_excel(prices_url)
+            return prices_df
+        except Exception as e:
+            sg.popup_error("Error updating the prices ",e)
+            return None
+    prices_df=fetch_prices(prices_url)
+    uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=list(prices_df.iloc[:,2])
     expansions_list=[xm90,xm70,xm30,xm32]
     expansions_max_default=[5,7,34,34]
     expansions_max=[0,0,0,0]
@@ -261,8 +271,8 @@ def main():
             except Exception as e:
                 sg.popup_error("Enter a valid input: ",e)
 
-        if "+CLICKED+" in event:
-            window["bt_enclosures"].update(visible=True)
+        #if "+CLICKED+" in event:
+        #    window["bt_enclosures"].update(visible=True)
         if "-Save_System-" in event:
             file_name=sg.popup_get_file("Save As",save_as=True,no_window=True,file_types=((("CSV File","*.csv"),("Excel File","*.xlsx"))))
             if file_name:
