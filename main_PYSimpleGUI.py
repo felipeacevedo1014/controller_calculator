@@ -4,6 +4,9 @@ import PySimpleGUI as sg
 import threading
 import math
 import pathlib as Path
+import requests
+from io import BytesIO
+
 
 class Controller:
     def __init__(self,name,price=0,power_AC=0,power_DC=0,width=0,UI=0,UIAO=0,BO=0,AI=0,BI=0,BIAO=0,pressure=0,max_point_capacity=0):
@@ -225,10 +228,13 @@ def main():
     pm014=Controller(name="PM014",price=198.31,power_AC=20,width=5)
     #uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=955.04,436.72,1116.25,908.01,290.16,290.16,198.31  #no updated prices
     uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=30,30,20,20,10,10,5    
-    prices_url="https://github.com/felipeacevedo1014/controller_calculator/blob/54874096a194c8852c888a819188fe414f7b3eac/prices.xlsx"
+    prices_url="https://github.com/felipeacevedo1014/controller_calculator/blob/e29399d3f03e6446f80c4a882bb92db59307ec04/prices.xlsx"
     def fetch_prices(prices_url):
         try:
-            prices_df=pd.read_excel(prices_url)
+            response=requests.get(url=prices_url,stream=True)
+            response.raise_for_status()
+            excel_data=BytesIO(response.content)
+            prices_df=pd.read_excel(excel_data,engine="openpyxl")
             return prices_df
         except Exception as e:
             sg.popup_error("Error updating the prices ",e)
