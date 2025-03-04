@@ -5,7 +5,7 @@ import threading
 import math
 import pathlib as Path
 import requests
-from io import BytesIO
+from io import BytesIO,StringIO
 
 
 class Controller:
@@ -226,20 +226,20 @@ def main():
     xm30=Controller(name="XM30",price=290.16,power_DC=120,width=2.11,UIAO=4)
     xm32=Controller(name="XM32",price=290.16,power_DC=100,width=2.82,BO=4)
     pm014=Controller(name="PM014",price=198.31,power_AC=20,width=5)
-    #uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=955.04,436.72,1116.25,908.01,290.16,290.16,198.31  #no updated prices
     uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=30,30,20,20,10,10,5    
-    prices_url="https://github.com/felipeacevedo1014/controller_calculator/blob/e29399d3f03e6446f80c4a882bb92db59307ec04/prices.xlsx"
+    prices_url="https://raw.githubusercontent.com/felipeacevedo1014/controller_calculator/refs/heads/main/prices.csv"
     def fetch_prices(prices_url):
         try:
-            response=requests.get(url=prices_url,stream=True)
+            response=requests.get(url=prices_url,verify=False)
             response.raise_for_status()
-            excel_data=BytesIO(response.content)
-            prices_df=pd.read_excel(excel_data,engine="openpyxl")
+            url_data=StringIO(response.text)
+            prices_df=pd.read_csv(url_data,encoding="utf-8",sep=",",header=None)
             return prices_df
         except Exception as e:
             sg.popup_error("Error updating the prices ",e)
             return None
     prices_df=fetch_prices(prices_url)
+    print(prices_df)
     uc600.price,s500.price,xm90.price,xm70.price,xm30.price,xm32.price,pm014.price=list(prices_df.iloc[:,2])
     expansions_list=[xm90,xm70,xm30,xm32]
     expansions_max_default=[5,7,34,34]
