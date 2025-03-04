@@ -152,10 +152,12 @@ class GUI:
                    [sg.Input(default_text=self.prices[4],key="XM30_price",size=10)],
                    [sg.Input(default_text=self.prices[5],key="XM32_price",size=10)]
                    ]
-        self.tab_settings=[[sg.Frame("Prices",[
-                        [sg.Col(self.col1),sg.Col(self.col2)]
-        ])]]
-        self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple),sg.Tab("Settings",self.tab_settings)]])
+        # self.tab_settings=[[sg.Frame("Prices",[
+        #                 [sg.Col(self.col1),sg.Col(self.col2)]
+        #])]]
+        #self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple),sg.Tab("Settings",self.tab_settings)]])
+        #            ]]
+        self.layout = [[sg.TabGroup([[sg.Tab("Single System",self.tab_system),sg.Tab("Multiple Systems",self.tab_multiple)]])
                     ]]
 
     def create_window(self):
