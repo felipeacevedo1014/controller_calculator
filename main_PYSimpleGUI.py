@@ -6,6 +6,7 @@ import math
 import pathlib as Path
 import requests
 from io import BytesIO,StringIO
+from collections import OrderedDict
 
 
 class Controller:
@@ -55,6 +56,10 @@ class System:
                     total_xm90_70=counts[0]+counts[1]
                     qty_pm014=max(0,math.ceil((total_xm30_32-(2*total_xm90_70)-2)/11)) #each controller, XM70 or XM90 can power 2 XM30/32. so if there are more we need PM014
                     ##11 is the max ammount of expansiones the pm014 can power up
+                if self.system_controller.name=="S500":
+                    combination=OrderedDict([("S500",1),("UC600",0)]+list(combination.items()))
+                else:
+                    combination=OrderedDict([("S500",0),("UC600",1)]+list(combination.items()))
                 combination["PM014"]=qty_pm014
                 combination["Total Price"]=round((price+self.system_controller.price+(self.pm014.price)*qty_pm014),2)
                 combination["Total Width"]=round((width+self.system_controller.width+(self.pm014.width)*qty_pm014),2)
@@ -84,7 +89,7 @@ class System:
 
     def filter_combinations(self,total_combinations_dict):
         total_combinations_df=pd.DataFrame(total_combinations_dict) #Convert dictionary of Dataframe
-        total_combinations_df.columns=["XM90","XM70","XM30","XM32","PM014","Total Price","Total Width"] 
+        total_combinations_df.columns=["S500","UC600","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width"] 
         #total_combinations_df["Notes"]=None
         filter_order=list(permutations(["XM90","XM70","XM30","XM32"])) #Create a list with all the possible filter orders
         filetered_combinations=[]
@@ -97,6 +102,7 @@ class System:
         total_filtered_data=pd.concat(filetered_combinations,ignore_index=True).drop_duplicates() #Eliminate duplicates
         sorted_by_price=total_filtered_data.sort_values(by="Total Price")
         sorted_by_price.reset_index(drop=True,inplace=True)
+        print("Options:")
         print(sorted_by_price)
         return sorted_by_price
 
@@ -125,22 +131,22 @@ class GUI:
                      sg.Text("UI:"),sg.InputText(default_text="5",size=(3),key="UI"),sg.Text("AI:"),sg.InputText(default_text="5",size=(3),key="AI"),
                      sg.Text("AO:"),sg.InputText(default_text="5",size=(3),key="AO"),sg.Text("Pressure:"),sg.InputText(default_text="0",size=(2),key="pressure")],
                      [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="controller"),sg.Text("Spare Points [%]"),sg.Spin(values=list(range(0,100,1)),initial_value=0,key="-Spare_Points-",size=3)],
-                     [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]])
+                     [sg.CB("Include XM90",default=True,key="inc_XM90"),sg.CB("Include XM70",default=True,key="inc_XM70"),sg.CB("Include XM30",default=True,key="inc_XM30"),sg.CB("Include XM32",default=True,key="inc_XM32")]],expand_x=True)
         self.frame_results=sg.Frame("Results",[
-                    [sg.Table(values=[],headings=["Combination","XM90","XM70","XM30","XM32","PM014","Price","Width [in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[8,6,6,6,6,8,8],auto_size_columns=False,)],
+                    [sg.Table(values=[],headings=["Options","S500","UC600","XM90","XM70","XM30","XM32","PM014","Price","Width[in]"],justification="center",key="results_table",expand_x=True,enable_click_events=True,col_widths=[6,6,6,6,6,6,6,8,8],auto_size_columns=False,)],
                     ])
         self.tab_system=[[self.frame_system],
                      [sg.B("Calculate",key="-Calculate_System-"),sg.B("Exit",key="Exit")],
                      [self.frame_results],
                      [sg.B("Save Results",key="-Save_System-",visible=False),sg.B("Calculate Enclosures",key="bt_enclosures",visible=False)]]
         self.tab_multiple=[[sg.Frame("Load File",[
-                        [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="Building_controller")],
+                        [sg.Text("Select Controller: "),sg.DropDown(["S500","UC600"],default_value="S500",key="Building_controller"),sg.Text("Spare Points [%]"),sg.Spin(values=list(range(0,100,1)),initial_value=0,key="-Spare_Building_Points-",size=3)],
                         [sg.CB("Include XM90",default=True,key="Building_inc_XM90"),sg.CB("Include XM70",default=True,key="Building_inc_XM70"),sg.CB("Include XM30",default=True,key="Building_inc_XM30"),sg.CB("Include XM32",default=True,key="Building_inc_XM32")],
                         [sg.InputText(key="-Building_File-",enable_events=True),sg.FileBrowse("Open Points",file_types=((("CSV File","*.csv"),("Excel File","*.xlsx"))),key="-Building_File-"),sg.B("Calculate",key="-Calculate_Building-")],
-                        [sg.Table(values=[],headings=["System Name","BO","BI","UI","AO","AI","Pressure"],num_rows=6,justification="center",key="-Building_points-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False,)],
-                        ])],
+                        [sg.Table(values=[],headings=["System Name","BO","BI","UI","AO","AI","Pressure"],num_rows=8,justification="center",key="-Building_points-",expand_x=True,enable_click_events=True,col_widths=[14,6,6,6,6,6,10],auto_size_columns=False,)]
+                        ],expand_x=True)],
                         [sg.Frame("Results",[
-                        [sg.Table(values=[],headings=["System Name","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"],num_rows=6,justification="center",key="-Building_Results-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,6,6,10,10],auto_size_columns=False)],
+                        [sg.Table(values=[],headings=["System Name","S500","UC600","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"],num_rows=8,justification="center",key="-Building_Results-",expand_x=True,enable_click_events=True,col_widths=[10,6,6,5,5,5,5,8,8],auto_size_columns=False)],
                         [sg.B("Save Results",key="-Save_building-",visible=True)]
                         ])]]
         self.prices=[1100,1000,600,500,400,300]
@@ -162,7 +168,7 @@ class GUI:
 
     def create_window(self):
         # Create the Window
-        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,resizable=False,size=(520,420))
+        window = sg.Window(title="Trane Controller/Expansions Calculator",layout=self.layout,resizable=False,size=(560,440))
         return window
 
     def get_system_points(self):
@@ -189,20 +195,22 @@ def run_calculations(window,system_points, system_controller, expansions_list,ex
                 formatted_data.append(formatted_row)
             return formatted_data
         window["results_table"].update(values=convert_to_int(results))
+
     except Exception as e:
         sg.popup_error("Combination not found! ")
 
-def run_building_calculations(window,building_points_df, system_controller, expansions_list,expansions_max,pm014,include_pm014):
+def run_building_calculations(window,building_points_df, system_controller, expansions_list,expansions_max,pm014,include_pm014,spare_points):
     #system_points={"BO":20,"BI":0,"UI":25,"AO":30,"AI":2,"pressure":1}
     try:
         building_results=[]
+        building_points_df.iloc[:,1:-1]=building_points_df.iloc[:,1:-1].map(lambda x: math.ceil(x*(1+spare_points/100)))
         building_points_df.columns=["System Name","BO","BI","UI","AO","AI","Pressure"]
+        print(f"\n Spare Points: {spare_points}%")
+        print(building_points_df)
         for row in building_points_df.itertuples(index=False):
-            print(row)
             system_name=row[0]
             system_points={"BO":row[1],"BI":row[2],"UI":row[3],"AO":row[4],"AI":row[5],"pressure":row[6]}
             system=System(system_points,system_controller,expansions_list,expansions_max,pm014,include_pm014)
-            print("Combinations:")
             results=system.find_combinations()
             results.reset_index(inplace=True,drop=True)
             system_results=results.iloc[0].tolist()
@@ -287,7 +295,7 @@ def main():
                 print(file_name)
                 try:
                     table_values=window["results_table"].Values
-                    data=pd.DataFrame(table_values,columns=["Combination","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"])
+                    data=pd.DataFrame(table_values,columns=["Option","S500","UC600","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"])
                     if file_name.endswith(".csv"):
                         data.to_csv(file_name)
                         sg.popup("Results saved succesfully!")
@@ -319,7 +327,8 @@ def main():
                     expansions_max[1]=0 if values["Building_inc_XM70"]==False else expansions_max_default[1]
                     expansions_max[2]=0 if values["Building_inc_XM30"]==False else expansions_max_default[2]
                     expansions_max[3]=0 if values["Building_inc_XM32"]==False else expansions_max_default[3]
-                    threading.Thread(target=run_building_calculations, args=(window,building_df, system_controller, expansions_list,expansions_max,pm014,include_pm014), daemon=True).start() 
+                    spare_points=int(values["-Spare_Building_Points-"])
+                    threading.Thread(target=run_building_calculations, args=(window,building_df, system_controller, expansions_list,expansions_max,pm014,include_pm014,spare_points), daemon=True).start() 
                 except Exception as e:
                     sg.popup_error("Error calculating the building points: ",e)
         if "-Save_building-" in event:
@@ -328,7 +337,7 @@ def main():
                 print(file_name)
                 try:
                     table_values=window["-Building_Results-"].values
-                    data=pd.DataFrame(table_values,columns=["System Name","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"])
+                    data=pd.DataFrame(table_values,columns=["System Name","S500","UC600","XM90","XM70","XM30","XM32","PM014","Total Price","Total Width [in]"])
                     if file_name.endswith(".csv"):
                         data.to_csv(file_name)
                         sg.popup("Results saved succesfully!")
@@ -341,8 +350,6 @@ def main():
                         sg.popup("Results saved succesfully!")
                 except Exception as e:
                     sg.popup_error("Error saving the results: ",e)
-
-
 
     window.close()
 
