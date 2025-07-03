@@ -17,7 +17,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry("900x540")
+        self.geometry("900x480")
 
         # --- controllers & pricing setup ---
         self.controllers = self.initialize_controllers()
@@ -136,7 +136,7 @@ class App(ctk.CTk):
             frame,
             columns=("S500","UC600","XM90","XM70","XM30","XM32","PM014","Price","Width"),
             show="headings",
-            height=10
+            height=6
         )
         for col in self.tree_single["columns"]:
             self.tree_single.heading(col, text=col)
