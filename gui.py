@@ -30,12 +30,22 @@ class App(ctk.CTk):
         self.expansions_max_default = [5, 7, 34, 34]
 
         # --- load controller images ---
-        self.controller_images = {
-            name: ctk.CTkImage(
-                Image.open(f"assets/{name}.png"), size=(300, 200)
-            )
-            for name in ["S500", "UC600"]
-        }
+        # self.controller_images = {
+        #     name: ctk.CTkImage(
+        #         Image.open(f"assets/{name}.png"), size=(300, 200)
+        #     )
+        #     for name in ["S500", "UC600"]
+        # }
+        self.controller_images = {}
+        self.controller_images.update({
+            "S500": ctk.CTkImage(
+                Image.open(f"assets/S500.png"), size=(300, 200))
+        })
+        self.controller_images.update({
+            "UC600": ctk.CTkImage(
+                Image.open(f"assets/UC600.png"), size=(400, 160))
+        })
+
         # keep a ref so they don't get garbage-collected
         self.current_image = self.controller_images["S500"]
 
