@@ -27,12 +27,14 @@ class App(ctk.CTk):
             self.controllers["XM30"],
             self.controllers["XM32"],
         ]
-        self.expansions_max_default = [5, 7, 34, 34]
+        #self.expansions_max_default = [5, 7, 34, 34]
+        #use this to optimize the results
+        self.expansions_max_default = [5, 7, 15, 15]
 
         # --- zoom setup 🔧 ---
         self.image_x = 0
         self.image_y = 0
-        self.zoom_factor = 0.2
+        self.zoom_factor = 0.23
         self.zoom_step = 0.2
         self.original_images = {
             "S500": Image.open("assets/S500_2.png"),
@@ -143,10 +145,10 @@ class App(ctk.CTk):
         self.controller_choice.set("S500")
         self.controller_choice.grid(row=0, column=3, padx=10, sticky="e")
 
-        ctk.CTkLabel(frame, text="Spare Points [%]").grid(row=1, column=3, sticky="w", padx=5)
+        ctk.CTkLabel(frame, text="Spare Points [%]").grid(row=1, column=3, sticky="w", padx=2)
         self.spare_spin = ctk.CTkEntry(frame, width=50)
         self.spare_spin.insert(0, "0")
-        self.spare_spin.grid(row=1, column=4, pady=2, padx=(0,5), sticky="w")
+        self.spare_spin.grid(row=1, column=3, pady=2, padx=(0,5), sticky="e")
 
         self.expansion_vars = {}
         for idx, exp in enumerate(["XM90", "XM70", "XM30", "XM32"]):
@@ -190,7 +192,7 @@ class App(ctk.CTk):
 
     def _on_controller_select(self, new_ctrl: str):  # 🔧 Updated
         self.current_controller = new_ctrl
-        self.zoom_factor = 0.2  # Reset zoom
+        self.zoom_factor = 0.23  # Reset zoom
         pil_image = self.original_images[new_ctrl]
         self._update_image_display(pil_image)
 
@@ -231,7 +233,7 @@ class App(ctk.CTk):
         self._update_image_display(pil_image, center_if_needed=False)  # 🟡 KEY CHANGE
 
     def _reset_zoom(self, event=None):
-        self.zoom_factor = 0.2
+        self.zoom_factor = 0.23
         pil_image = self.original_images[self.current_controller]
         self._update_image_display(pil_image, center_if_needed=True)
 
@@ -295,7 +297,7 @@ class App(ctk.CTk):
 
         self.pan_start_x = event.x
         self.pan_start_y = event.y
-
+    
 
     def save_single_results(self):
         file_path = filedialog.asksaveasfilename(

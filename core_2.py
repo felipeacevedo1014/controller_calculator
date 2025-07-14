@@ -67,8 +67,8 @@ class System:
                 for exp in self.expansions:
                     combination_ordered[exp.name] = combination[exp]
                 combination_ordered["PM014"] = qty_pm014
-                combination_ordered["Total Price"] = round(price + self.system_controller.price + (self.pm014.price * qty_pm014), 2)
-                combination_ordered["Total Width"] = round(width + self.system_controller.width + (self.pm014.width * qty_pm014), 2)
+                combination_ordered["Price"] = round(price + self.system_controller.price + (self.pm014.price * qty_pm014), 2)
+                combination_ordered["Width"] = round(width + self.system_controller.width + (self.pm014.width * qty_pm014), 2)
                 total_combinations.append(combination_ordered)
 
         return self.filter_combinations(total_combinations)
@@ -105,20 +105,40 @@ class System:
     def filter_combinations(self, combinations):
         if not combinations:
             return pd.DataFrame(columns=["S500", "UC600", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"])
-        df = pd.DataFrame(combinations)
+    
+        df = pd.DataFrame(combinations).sort_values(by="Price").reset_index(drop=True).head(500)
         df.columns = ["S500", "UC600", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"]
-        filtered = []
-        for order in permutations(["XM90", "XM70", "XM30", "XM32"]):
-            data = df.copy()
-            for col in order:
-                data = data[data[col] == data[col].min()]
-            filtered.append(data)
-        final = pd.concat(filtered, ignore_index=True).drop_duplicates().sort_values(by="Price")
-        final.reset_index(drop=True, inplace=True)
-        count_cols = [c for c in final.columns if c not in ("Price", "Width")]
-        final[count_cols] = final[count_cols].astype(int)
-        #print(final)
-        return final
+    
+        expansion_cols = ["XM90", "XM70", "XM30", "XM32", "PM014"]
+    
+        keep_rows = []
+    
+        for i, row_i in df.iterrows():
+            is_redundant = False
+            for j, row_j in df.iterrows():
+                if i == j:
+                    continue
+    
+                cheaper_or_equal = row_j["Price"] <= row_i["Price"]
+                strictly_better_modules = all(row_j[c] <= row_i[c] for c in expansion_cols) and any(
+                    row_j[c] < row_i[c] for c in expansion_cols
+                )
+    
+                if cheaper_or_equal and strictly_better_modules:
+                    is_redundant = True
+                    break
+    
+            if not is_redundant:
+                keep_rows.append(i)
+    
+        filtered_df = df.loc[keep_rows].copy()
+    
+        # Final cleanup
+        count_cols = [c for c in filtered_df.columns if c not in ("Price", "Width")]
+        filtered_df[count_cols] = filtered_df[count_cols].astype(int)
+        filtered_df = filtered_df.sort_values(by="Price").reset_index(drop=True)
+    
+        return filtered_df
 
 
 class Enclosure:
