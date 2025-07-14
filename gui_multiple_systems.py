@@ -12,7 +12,6 @@ from core_2 import Controller, fetch_prices, run_calculations, run_building_calc
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -105,9 +104,9 @@ class App(ctk.CTk):
         self.canvas.pack(expand=True, fill="both")
         self.zoom_hint_label = ctk.CTkLabel(
             frame,
-            text="🔍 Hold Ctrl and scroll to zoom. Click and drag to pan.\n Double Click to reset the zoom",
+            text="🔍 Hold Ctrl and scroll to zoom. Click and drag to pan. Double Click to reset the zoom",
             text_color="gray",
-            font=("Arial", 12)
+            font=("Arial", 11)
         )
         self.zoom_hint_label.grid(row=7, column=2, pady=(2, 0), sticky="n")
         # Initialize canvas image handle
@@ -116,8 +115,9 @@ class App(ctk.CTk):
         # Bind panning events
         self.canvas.bind("<ButtonPress-1>", self._start_pan)
         self.canvas.bind("<B1-Motion>", self._do_pan)
-        self.after(100, lambda: self._update_image_display(
-            self.original_images[self.current_controller], center_if_needed=True))
+        #self.after(100, lambda: self._update_image_display(
+        #    self.original_images[self.current_controller], center_if_needed=True))
+        self.after(50,self._wait_for_canvas_ready)
 
         #--zoom reset--
         self.canvas.bind("<Double-Button-1>", self._reset_zoom)
@@ -160,21 +160,33 @@ class App(ctk.CTk):
         self.save_button = ctk.CTkButton(frame, text="Save Results", command=self.save_single_results)
         self.save_button.grid(row=6, column=3, pady=10, padx=5, columnspan=2)
 
-        self.tree_single = ttk.Treeview(
-            frame,
-            columns=("S500","UC600","XM90","XM70","XM30","XM32","PM014","Price","Width"),
-            show="headings",
-            height=6
-        )
+
         style = ttk.Style()
         is_dark = ctk.get_appearance_mode() == "Dark"
-        bg_color = self["bg"] if is_dark else "#e0e0e0"
-        style.configure("Treeview", background=bg_color, fieldbackground=bg_color, foreground="white")
+        #bg_color = self["bg"] if is_dark else "#e0e0e0"
+        bg_color ="#f0f0f0"
+        print(f"Using background color: {bg_color}")
+        style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="black")
+
+        self.tree_single = ttk.Treeview(
+        frame,
+        columns=("S500","UC600","XM90","XM70","XM30","XM32","PM014","Price","Width"),
+        show="headings",
+        height=6,
+        style="Custom.Treeview"
+        )
+
 
         for col in self.tree_single["columns"]:
             self.tree_single.heading(col, text=col)
             self.tree_single.column(col, anchor="center", width=80)
         self.tree_single.grid(row=8, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
+
+    def _wait_for_canvas_ready(self):
+        if self.canvas.winfo_width() < 10 or self.canvas.winfo_height()<10:
+            self.after(50, self._wait_for_canvas_ready)
+        else:
+            self._update_image_display(self.original_images[self.current_controller], center_if_needed=True)
 
     def _on_controller_select(self, new_ctrl: str):  # 🔧 Updated
         self.current_controller = new_ctrl
