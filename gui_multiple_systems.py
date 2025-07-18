@@ -29,7 +29,7 @@ class App(ctk.CTk):
         ]
         #self.expansions_max_default = [5, 7, 34, 34]
         #use this to optimize the results
-        self.expansions_max_default = [5, 7, 15, 15]
+        self.expansions_max_default = [5, 7, 25, 25]
 
         # --- zoom setup 🔧 ---
         self.image_x = 0
