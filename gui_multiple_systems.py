@@ -19,7 +19,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry("980x520")
+        self.geometry("980x560")
         self.resizable(False, False)
 
         # --- controllers & pricing setup ---
@@ -74,8 +74,9 @@ class App(ctk.CTk):
     def initialize_controllers(self):
         uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120)
         s500 =  Controller("S500",  power_AC=24, width=5.65,AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133)
+        s800 =  Controller("S800",  power_DC=24, width=5.65,AI=5, max_point_capacity=500)
         xm90 =  Controller("XM90",  power_AC=50, width=8.5, UI=16, UIAO=8, BO=8)
-        xm70 =  Controller("XM70",  power_AC=26, width=8.5, UI=8, UIAO=6, BO=4)
+        xm70 =  Controller("XM70",  power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1)
         xm30 =  Controller("XM30",  power_DC=120, width=2.11, UIAO=4)
         xm32 =  Controller("XM32",  power_DC=100, width=2.82, BO=4)
         pm014 = Controller("PM014", power_AC=20, width=5)
@@ -118,7 +119,7 @@ class App(ctk.CTk):
             text_color="gray",
             font=("Arial", 11)
         )
-        self.zoom_hint_label.grid(row=7, column=2, pady=(2, 0), sticky="n")
+        self.zoom_hint_label.grid(row=8, column=2, pady=(2, 0), sticky="n")
         # Initialize canvas image handle
         self.canvas_image_id = None
 
@@ -173,9 +174,9 @@ class App(ctk.CTk):
         self.pm014_var.grid(row=6, column=3, columnspan=2, sticky="w", padx=5)
 
         ctk.CTkButton(frame, text="Calculate", command=self.calculate_single)\
-            .grid(row=7, column=0, pady=10, padx=5, columnspan=2)
+            .grid(row=8, column=0, pady=10, padx=5, columnspan=2)
         self.save_button = ctk.CTkButton(frame, text="Save Results", command=self.save_single_results)
-        self.save_button.grid(row=7, column=3, pady=10, padx=5, columnspan=2)
+        self.save_button.grid(row=8, column=3, pady=10, padx=5, columnspan=2)
 
 
         style = ttk.Style()
@@ -198,7 +199,7 @@ class App(ctk.CTk):
         for col in self.tree_single["columns"]:
             self.tree_single.heading(col, text=col)
             self.tree_single.column(col, anchor="center", width=80)
-        self.tree_single.grid(row=8, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
+        self.tree_single.grid(row=9, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
     def _wait_for_canvas_ready(self):
         if self.canvas.winfo_width() < 10 or self.canvas.winfo_height()<10:
