@@ -6,6 +6,7 @@ from io import StringIO
 from collections import OrderedDict
 
 
+
 class Controller:
     def __init__(self, name, price=0, power_AC=0, power_DC=0, width=0, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0):
         self.name = name

@@ -1,10 +1,16 @@
 Important:
-- Error handler: Limitation in the points capacity per controller, wainign to the user before executing the code. Include spare points in that calcualtion
-- Progress bards during calculations
 - Fix resultion issues: Modify image size depending on the user screen resolution
 - Total VA requirements
-- Include/Not include PM014 button
 
 
 Good to have:
 - Add the S800 as a controller
+
+Implemented updates:
+- Progress indicator during calculations
+- Error handler: Limitation in the points capacity per controller, wainign to the user before executing the code. Include spare points in that calcualtion
+- Include PM014 checkbox
+- Datasheets
+- Tooltips
+
+

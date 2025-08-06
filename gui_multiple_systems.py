@@ -5,9 +5,12 @@ import pandas as pd
 import threading
 import os
 import math
+import webbrowser
 from PIL import Image, ImageTk
 
 from core_2 import Controller, fetch_prices, run_calculations, run_building_calculations
+from tooltip import ToolTip
+
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -16,7 +19,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry("920x480")
+        self.geometry("980x520")
         self.resizable(False, False)
 
         # --- controllers & pricing setup ---
@@ -27,9 +30,8 @@ class App(ctk.CTk):
             self.controllers["XM30"],
             self.controllers["XM32"],
         ]
-        #self.expansions_max_default = [5, 7, 34, 34]
-        #use this to optimize the results
-        self.expansions_max_default = [5, 7, 25, 25]
+        self.expansions_max_default = [5, 7, 34, 34]
+
 
         # --- zoom setup 🔧 ---
         self.image_x = 0
@@ -57,11 +59,17 @@ class App(ctk.CTk):
         self.tabview.pack(expand=True, fill="both", padx=10, pady=10)
         self.tab_system = self.tabview.add("Single System")
         self.tab_building = self.tabview.add("Multiple Systems")
+        self.tab_resources = self.tabview.add("Resources")
         self.tabview.set("Single System")
 
         # --- build tabs ---
         self.build_single_system_tab()
         self.build_multiple_system_tab()
+        self.build_resources_tab()
+
+        # --- status label ---
+        self.status_label = ctk.CTkLabel(self, text="")
+        self.status_label.pack()
 
     def initialize_controllers(self):
         uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120)
@@ -128,27 +136,29 @@ class App(ctk.CTk):
         self.inputs = {}
         row = 0
         for label in ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]:
-            ctk.CTkLabel(frame, text=label).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            ctk.CTkLabel(frame, text=label).grid(row=1+row, column=0, sticky="w", padx=5, pady=2)
             entry = ctk.CTkEntry(frame, width=60)
             entry.insert(0, "0")
-            entry.grid(row=row, column=1, pady=2, padx=(0,5), sticky="w")
+            entry.grid(row=1+row, column=1, pady=2, padx=(0,5), sticky="w")
             self.inputs[label] = entry
             row += 1
 
         # --- controller selector & spare ---
-        ctk.CTkLabel(frame, text="Controller").grid(row=0, column=3, padx=5)
+        ctk.CTkLabel(frame, text="").grid(row=0, column=0, padx=5)
         self.controller_choice = ctk.CTkOptionMenu(
             frame,
             values=["S500", "UC600"],
             command=self._on_controller_select
         )
         self.controller_choice.set("S500")
-        self.controller_choice.grid(row=0, column=3, padx=10, sticky="e")
+        self.controller_choice.grid(row=0, column=3, padx=10, columnspan=2, sticky="e")
+        ToolTip(self.controller_choice, text="Choose a controller: UC600 or S500.")
 
-        ctk.CTkLabel(frame, text="Spare Points [%]").grid(row=1, column=3, sticky="w", padx=2)
+        ctk.CTkLabel(frame, text="Spare Points[%]").grid(row=1, column=3, sticky="w", padx=2)
         self.spare_spin = ctk.CTkEntry(frame, width=50)
         self.spare_spin.insert(0, "0")
-        self.spare_spin.grid(row=1, column=3, pady=2, padx=(0,5), sticky="e")
+        self.spare_spin.grid(row=1, column=3, columnspan=2, pady=2, padx=(0,5), sticky="e")
+        ToolTip(self.spare_spin, text="Add spare points to each type (e.g. 10% means 10% more points calculated)")
 
         self.expansion_vars = {}
         for idx, exp in enumerate(["XM90", "XM70", "XM30", "XM32"]):
@@ -157,18 +167,24 @@ class App(ctk.CTk):
             cb.grid(row=2+idx, column=3, columnspan=2, sticky="w", padx=5)
             self.expansion_vars[exp] = cb
 
+        # --- PM014 checkbox ---
+        self.pm014_var = ctk.CTkCheckBox(frame, text="Include PM014")
+        self.pm014_var.select()
+        self.pm014_var.grid(row=6, column=3, columnspan=2, sticky="w", padx=5)
+
         ctk.CTkButton(frame, text="Calculate", command=self.calculate_single)\
-            .grid(row=6, column=0, pady=10, padx=5, columnspan=2)
+            .grid(row=7, column=0, pady=10, padx=5, columnspan=2)
         self.save_button = ctk.CTkButton(frame, text="Save Results", command=self.save_single_results)
-        self.save_button.grid(row=6, column=3, pady=10, padx=5, columnspan=2)
+        self.save_button.grid(row=7, column=3, pady=10, padx=5, columnspan=2)
 
 
         style = ttk.Style()
         is_dark = ctk.get_appearance_mode() == "Dark"
+        print(f"Using dark mode: {is_dark}")
         #bg_color = self["bg"] if is_dark else "#e0e0e0"
-        bg_color ="#f0f0f0"
+        bg_color ="gray14"
         print(f"Using background color: {bg_color}")
-        style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="black")
+        style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="white")
 
         self.tree_single = ttk.Treeview(
         frame,
@@ -240,12 +256,25 @@ class App(ctk.CTk):
     def calculate_single(self):
         try:
             system_points = {k: int(v.get()) for k, v in self.inputs.items()}
-            spare = int(self.spare_spin.get())
+            try:
+                spare = int(self.spare_spin.get())
+            except ValueError:
+                messagebox.showerror("Error","Spare Points must be an integer.")
+                return
+            ctrl = self.controllers[self.controller_choice.get()]
+            # Check point capacity
             system_points = {
-                k: math.ceil(v * (1 + spare/100))
+                k: math.ceil(v * (1 + spare / 100))
                 for k, v in system_points.items()
             }
-            ctrl = self.controllers[self.controller_choice.get()]
+            total_points = sum(system_points.values())
+            if total_points > ctrl.max_point_capacity:
+                messagebox.showwarning(
+                    "Point Limit Exceeded",
+                    f"{ctrl.name} has a point limit of {ctrl.max_point_capacity}, "
+                    f"but this system requires {total_points} points."
+                )
+                return
 
             expansions_max = [
                 self.expansions_max_default[i]
@@ -253,15 +282,16 @@ class App(ctk.CTk):
                 else 0
                 for i, exp in enumerate(["XM90","XM70","XM30","XM32"])
             ]
-
             def thread_fn():
+                self.status_label.configure(text="Calculating...")
+                include_pm014 = bool(self.pm014_var.get())
                 results = run_calculations(
                     system_points,
                     ctrl,
                     self.expansions,
                     expansions_max,
                     self.controllers["PM014"],
-                    True
+                    include_pm014
                 )
                 for col in results.columns:
                     if col not in ("Price", "Width"):
@@ -275,8 +305,10 @@ class App(ctk.CTk):
                         else:
                             formatted_row.append(f"{int(val)}")
                     self.tree_single.insert("", "end", values=formatted_row)
-
+                self.status_label.configure(text="Done.")
+   
             threading.Thread(target=thread_fn, daemon=True).start()
+
 
         except Exception as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
@@ -328,13 +360,13 @@ class App(ctk.CTk):
 
         # === Load Excel button ===
         self.load_excel_button = ctk.CTkButton(
-            top_frame, text="Load", width=120, command=self.load_systems_excel
+            top_frame, text="Load", width=100, command=self.load_systems_excel
         )
         self.load_excel_button.pack(side="left", padx=10)
 
         # === Calculate button ===
         self.calculate_multi_button = ctk.CTkButton(
-            top_frame, text="Calculate", width=120, command=self.calculate_multiple
+            top_frame, text="Calculate", width=100, command=self.calculate_multiple
         )
         self.calculate_multi_button.pack(side="left", padx=10)
 
@@ -342,6 +374,7 @@ class App(ctk.CTk):
         self.multi_controller_choice = ctk.CTkOptionMenu(
             top_frame, values=["S500", "UC600"], width=100
         )
+        ToolTip(self.multi_controller_choice, text="Choose which controller to use for all systems in the spreadsheet")
         self.multi_controller_choice.set("S500")
         self.multi_controller_choice.pack(side="left", padx=10)
 
@@ -352,22 +385,27 @@ class App(ctk.CTk):
             cb.select()
             cb.pack(side="left", padx=3)
             self.multi_exp_vars[exp] = cb
+        # === PM014 checkbox ===
+        self.multi_pm014_var = ctk.CTkCheckBox(top_frame, text="PM014", width=80)
+        self.multi_pm014_var.select()
+        self.multi_pm014_var.pack(side="left", padx=3)
 
         # === Spare % ===
         ctk.CTkLabel(top_frame, text="Spare %:").pack(side="left", padx=(10, 2))
         self.multi_spare_spin = ctk.CTkEntry(top_frame, width=40)
         self.multi_spare_spin.insert(0, "0")
         self.multi_spare_spin.pack(side="left", padx=(0, 5))
+        ToolTip(self.multi_spare_spin, text="Add spare points to each type (e.g. 10% means 10% more points calculated)")
 
                 # === Editable system input table ===
-        self.multi_input_table = ttk.Treeview(frame, columns=("System", "BO", "BI", "UI", "AO", "AI", "PRESSURE"), show="headings", height=6)
+        self.multi_input_table = ttk.Treeview(frame, columns=("System", "BO", "BI", "UI", "AO", "AI", "PRESSURE"), show="headings", height=6,style="Custom.Treeview")
         for col in self.multi_input_table["columns"]:
             self.multi_input_table.heading(col, text=col)
             self.multi_input_table.column(col, width=100, anchor="center")
         self.multi_input_table.pack(fill="both", expand=True, pady=5, padx=5)
 
         # === Output table ===
-        self.multi_result_table = ttk.Treeview(frame, columns=("System","S500","UC600","XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"), show="headings", height=6)
+        self.multi_result_table = ttk.Treeview(frame, columns=("System","S500","UC600","XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"), show="headings", height=6, style="Custom.Treeview")
         for col in self.multi_result_table["columns"]:
             self.multi_result_table.heading(col, text=col)
             self.multi_result_table.column(col, width=85, anchor="center")
@@ -409,82 +447,102 @@ class App(ctk.CTk):
 
             # Populate the table (preserve original order)
             for _, row in df.iterrows():
-                values = [row[col] for col in required_cols]
+                values = [row.get(col, 0) for col in required_cols]
                 self.multi_input_table.insert("", "end", values=values)
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load file:\n{e}")
 
     def calculate_multiple(self):
-        try:
-            # 1. Gather input data from table
-            rows = []
-            for item in self.multi_input_table.get_children():
-                values = self.multi_input_table.item(item)['values']
-                rows.append(values)
+        def thread_fn():
+            try:
+                self.status_label.configure(text="Calculating...")
+                # 1. Gather input data from table
+                rows = []
+                for item in self.multi_input_table.get_children():
+                    values = self.multi_input_table.item(item)['values']
+                    rows.append(values)
 
-            if not rows:
-                messagebox.showwarning("No Data", "Please load or enter at least one system.")
-                return
+                if not rows:
+                    messagebox.showwarning("No Data", "Please load or enter at least one system.")
+                    return
 
-            df = pd.DataFrame(rows, columns=["System Name", "BO", "BI", "UI", "AO", "AI", "PRESSURE"])
+                df = pd.DataFrame(rows, columns=["System Name", "BO", "BI", "UI", "AO", "AI", "PRESSURE"])
 
-            # 2. Validate numeric fields
-            numeric_cols = ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]
-            for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors="raise")
+                # 2. Validate numeric fields
+                numeric_cols = ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors="raise")
 
-            # 3. Get selected controller and expansions
-            ctrl = self.controllers[self.multi_controller_choice.get()]
-            expansions_max = [
-                self.expansions_max_default[i]
-                if self.multi_exp_vars[exp].get()
-                else 0
-                for i, exp in enumerate(["XM90", "XM70", "XM30", "XM32"])
-            ]
+                # 3. Get selected controller and expansions
+                ctrl = self.controllers[self.multi_controller_choice.get()]
+                expansions_max = [
+                    self.expansions_max_default[i]
+                    if self.multi_exp_vars[exp].get()
+                    else 0
+                    for i, exp in enumerate(["XM90", "XM70", "XM30", "XM32"])
+                ]
 
-            # 4. Get spare %
-            spare = int(self.multi_spare_spin.get())
+                # 4. Get spare %
+                spare = int(self.multi_spare_spin.get())
 
-            # 5. Run calculation
-            results_df = run_building_calculations(
-                df,
-                ctrl,
-                self.expansions,
-                expansions_max,
-                self.controllers["PM014"],
-                True,  # include PM014
-                spare
-            )
-            print(results_df)
+                # Check point capacity for each system
+                total_points_per_system = df.iloc[:, 1:-1].applymap(lambda x: math.ceil(x * (1 + spare / 100)))
+                total_points_sum = total_points_per_system.sum(axis=1)
+                controller_limit = ctrl.max_point_capacity
 
-            # 6. Display results in table
-            # Clear previous content and reconfigure columns
-            self.multi_result_table.delete(*self.multi_result_table.get_children())
+                exceeded_systems = df["System Name"][total_points_sum > controller_limit].tolist()
+                if exceeded_systems:
+                    messagebox.showwarning(
+                        "Point Capacity Exceeded",
+                        f"The following systems exceed {ctrl.name}'s capacity of {controller_limit} points:\n\n" +
+                        "\n".join(exceeded_systems)
+                    )
+                    return
 
-            # Dynamically assign new column headers
-            columns = list(results_df.columns)
-            self.multi_result_table["columns"] = columns
+                # 5. Run calculation
+                include_pm014 = bool(self.multi_pm014_var.get())
+                results_df = run_building_calculations(
+                    df,
+                    ctrl,
+                    self.expansions,
+                    expansions_max,
+                    self.controllers["PM014"],
+                    include_pm014,
+                    spare
+                )
+                print(results_df)
 
-            for col in columns:
-                self.multi_result_table.heading(col, text=col)
-                self.multi_result_table.column(col, width=90, anchor="center")
+                # 6. Display results in table
+                # Clear previous content and reconfigure columns
+                self.multi_result_table.delete(*self.multi_result_table.get_children())
 
-            # Populate rows
-            for _, row in results_df.iterrows():
-                formatted_row = []
+                # Dynamically assign new column headers
+                columns = list(results_df.columns)
+                self.multi_result_table["columns"] = columns
+
                 for col in columns:
-                    val = row[col]
-                    if col in ("Price", "Width"):
-                        formatted_row.append(f"{val:.2f}")
-                    elif col == "System Name":
-                        formatted_row.append(str(val))
-                    else:
-                        formatted_row.append(str(int(val)) if pd.notna(val) else "")
-                self.multi_result_table.insert("", "end", values=formatted_row)
+                    self.multi_result_table.heading(col, text=col)
+                    self.multi_result_table.column(col, width=90, anchor="center")
 
-        except Exception as e:
-            messagebox.showerror("Error", f"Calculation failed:\n{e}")
+                # Populate rows
+                for _, row in results_df.iterrows():
+                    formatted_row = []
+                    for col in columns:
+                        val = row[col]
+                        if col in ("Price", "Width"):
+                            formatted_row.append(f"{val:.2f}")
+                        elif col == "System Name":
+                            formatted_row.append(str(val))
+                        else:
+                            formatted_row.append(str(int(val)) if pd.notna(val) else "")
+                    self.multi_result_table.insert("", "end", values=formatted_row)
+                self.status_label.configure(text="Done.")
+
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Calculation failed\n{e}")
+        threading.Thread(target=thread_fn, daemon=True).start()
 
     def save_multi_results(self):
         if not self.multi_result_table.get_children():
@@ -516,6 +574,30 @@ class App(ctk.CTk):
             messagebox.showinfo("Saved", f"Results saved to:\n{os.path.basename(file_path)}")
         except Exception as e:
             messagebox.showerror("Error", f"Could not save file:\n{e}")
+
+    def build_resources_tab(self):
+        frame = ctk.CTkFrame(self.tab_resources)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        ctk.CTkLabel(frame, text="Controller & Expansion Datasheets", font=("Arial", 14, "bold")).pack(pady=(5, 10))
+        # --- datasheet links ---
+        datasheets = {
+            "UC600":"https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX45K-EN_06032022.pdf",
+            "S500":"https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX090B-EN_04082023.pdf",
+            "S800":"https://www.trane.com/content/dam/Trane/Commercial/lar/Mexico/BAS-PRD041C-EN_10272023.pdf",
+            "XM90": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
+            "XM70": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
+            "XM30": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
+            "XM32": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
+            "PM014": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX33G-EN_04012020.pdf"
+        }
+        for name, url in datasheets.items():
+            btn = ctk.CTkButton(
+                frame,
+                text=f"{name} Datasheet",
+                width=240,
+                command=lambda u=url: webbrowser.open(u)
+            )
+            btn.pack(pady=5)
 
 
 if __name__ == '__main__':
