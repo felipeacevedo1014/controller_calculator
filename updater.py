@@ -10,7 +10,7 @@ REPO_LATEST_VERSION_URL = "https://raw.githubusercontent.com/felipeacevedo1014/c
 REPO_EXE_URL = "https://github.com/felipeacevedo1014/controller_calculator/releases/latest/download/controller_calculator.exe"
 
 # ✅ Your current version
-APP_VERSION = "v1.0.0"  # Update this with each release
+APP_VERSION = "1.0.0"  # Update this with each release
 
 def check_for_updates():
     try:

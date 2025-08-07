@@ -39,11 +39,26 @@ class App(ctk.CTk):
         # --- zoom setup 🔧 ---
         self.image_x = 0
         self.image_y = 0
-        self.zoom_factors = {
+
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        # Baseline is 1920x1080
+        base_width = 1920
+        base_zoom = {
             "S500": 0.3,
             "UC600": 0.3,
-            "S800": 0.58  # ⬅️ Adjust this until it visually matches others
+            "S800": 0.58
         }
+        scaling_factor = screen_width / base_width
+        # Apply scaling
+        self.zoom_factors = {
+            key: round(zoom * scaling_factor, 3)
+            for key, zoom in base_zoom.items()
+        }
+        self.zoom_factor = self.zoom_factors["S500"]  # or default controller
+        print(f"Screen resolution: {screen_width}x{screen_height}")
+        print("Zoom factors:", self.zoom_factors)
+
         self.zoom_step = 0.2
         self.original_images = {
             "S500": Image.open("assets/S500_2.png"),
@@ -219,7 +234,7 @@ class App(ctk.CTk):
 
     def _on_controller_select(self, new_ctrl: str):
         self.current_controller = new_ctrl
-        self.zoom_factor = self.zoom_factors.get(new_ctrl, 0.3)  # fallback if missing
+        self.zoom_factor = self.zoom_factors[new_ctrl]
         pil_image = self.original_images[new_ctrl]
         self._update_image_display(pil_image)
 
@@ -260,7 +275,7 @@ class App(ctk.CTk):
         self._update_image_display(pil_image, center_if_needed=False)  # 🟡 KEY CHANGE
 
     def _reset_zoom(self, event=None):
-        self.zoom_factor = self.zoom_factors.get(self.current_controller, 0.3)  # fallback if missing
+        self.zoom_factor = self.zoom_factors[self.current_controller]
         pil_image = self.original_images[self.current_controller]
         self._update_image_display(pil_image, center_if_needed=True)
 
