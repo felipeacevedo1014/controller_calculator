@@ -6,16 +6,12 @@ import threading
 import os
 import math
 import webbrowser
+import requests
 from PIL import Image, ImageTk
 
 from core_2 import Controller, fetch_prices, run_calculations, run_building_calculations
 from tooltip import ToolTip
-
-CURRENT_VERSION = "1.0.0"  # Update this when building a new release
-VERSION_URL = "https://raw.githubusercontent.com/felipeacevedo1014/controller_calculator/main/version.txt"
-RELEASE_PAGE_URL = "https://github.com/felipeacevedo1014/controller_calculator/releases/latest"
-
-
+from updater import check_for_updates
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -26,6 +22,8 @@ class App(ctk.CTk):
         self.title("Trane Controller & Expansion Calculator")
         self.geometry("1020x580")
         self.resizable(False, False)
+
+        check_for_updates()
 
         # --- controllers & pricing setup ---
         self.controllers = self.initialize_controllers()

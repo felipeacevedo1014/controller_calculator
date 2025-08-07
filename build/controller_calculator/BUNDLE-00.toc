@@ -1,0 +1,3 @@
+([('controller_calculator',
+   '/Users/felipeacevedo/Documents/Programing/controller_calculator-1/dist/controller_calculator',
+   'EXECUTABLE')],)
