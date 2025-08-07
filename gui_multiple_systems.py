@@ -11,6 +11,11 @@ from PIL import Image, ImageTk
 from core_2 import Controller, fetch_prices, run_calculations, run_building_calculations
 from tooltip import ToolTip
 
+CURRENT_VERSION = "1.0.0"  # Update this when building a new release
+VERSION_URL = "https://raw.githubusercontent.com/felipeacevedo1014/controller_calculator/main/version.txt"
+RELEASE_PAGE_URL = "https://github.com/felipeacevedo1014/controller_calculator/releases/latest"
+
+
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -19,7 +24,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry("980x560")
+        self.geometry("1020x580")
         self.resizable(False, False)
 
         # --- controllers & pricing setup ---
@@ -36,11 +41,16 @@ class App(ctk.CTk):
         # --- zoom setup 🔧 ---
         self.image_x = 0
         self.image_y = 0
-        self.zoom_factor = 0.23
+        self.zoom_factors = {
+            "S500": 0.3,
+            "UC600": 0.3,
+            "S800": 0.58  # ⬅️ Adjust this until it visually matches others
+        }
         self.zoom_step = 0.2
         self.original_images = {
             "S500": Image.open("assets/S500_2.png"),
-            "UC600": Image.open("assets/UC600_2.png")
+            "UC600": Image.open("assets/UC600_2.png"),
+            "S800": Image.open("assets/S800.png")
         }
 
         #--image panning setup 🔧---
@@ -50,6 +60,7 @@ class App(ctk.CTk):
         # --- load controller images (initial) 🔧 ---
         self.current_controller = "S500"
         self.current_image = None  # updated by method
+        self.zoom_factor = self.zoom_factors.get(self.current_controller, 0.3)  # 🔧 Add this
 
         # --- bind zoom 🔧 ---
         self.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
@@ -68,13 +79,13 @@ class App(ctk.CTk):
         self.build_resources_tab()
 
         # --- status label ---
-        self.status_label = ctk.CTkLabel(self, text="")
+        self.status_label = ctk.CTkLabel(self, text="",font=("Arial", 14))
         self.status_label.pack()
 
     def initialize_controllers(self):
         uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120)
         s500 =  Controller("S500",  power_AC=24, width=5.65,AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133)
-        s800 =  Controller("S800",  power_DC=24, width=5.65,AI=5, max_point_capacity=500)
+        s800 =  Controller("S800",  power_DC=24, width=5.65, max_point_capacity=500)
         xm90 =  Controller("XM90",  power_AC=50, width=8.5, UI=16, UIAO=8, BO=8)
         xm70 =  Controller("XM70",  power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1)
         xm30 =  Controller("XM30",  power_DC=120, width=2.11, UIAO=4)
@@ -85,7 +96,7 @@ class App(ctk.CTk):
         prices_df = fetch_prices(prices_url)
         prices = list(prices_df.iloc[:, 2])
 
-        for i, key in enumerate(["UC600","S500","XM90","XM70","XM30","XM32","PM014"]):
+        for i, key in enumerate(["UC600","S500","XM90","XM70","XM30","XM32","S800","PM014"]):
             locals()[key.lower()].price = prices[i]
 
         return {
@@ -95,6 +106,7 @@ class App(ctk.CTk):
             "XM70":  xm70,
             "XM30":  xm30,
             "XM32":  xm32,
+            "S800":  s800,
             "PM014": pm014,
         }
 
@@ -119,7 +131,7 @@ class App(ctk.CTk):
             text_color="gray",
             font=("Arial", 11)
         )
-        self.zoom_hint_label.grid(row=8, column=2, pady=(2, 0), sticky="n")
+        self.zoom_hint_label.grid(row=8, column=2, pady=(2, 2), sticky="nsew")
         # Initialize canvas image handle
         self.canvas_image_id = None
 
@@ -148,12 +160,12 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame, text="").grid(row=0, column=0, padx=5)
         self.controller_choice = ctk.CTkOptionMenu(
             frame,
-            values=["S500", "UC600"],
+            values=["S500", "UC600", "S800"],
             command=self._on_controller_select
         )
         self.controller_choice.set("S500")
         self.controller_choice.grid(row=0, column=3, padx=10, columnspan=2, sticky="e")
-        ToolTip(self.controller_choice, text="Choose a controller: UC600 or S500.")
+        ToolTip(self.controller_choice, text="Choose a controller: UC600, S500 or S800.")
 
         ctk.CTkLabel(frame, text="Spare Points[%]").grid(row=1, column=3, sticky="w", padx=2)
         self.spare_spin = ctk.CTkEntry(frame, width=50)
@@ -189,9 +201,9 @@ class App(ctk.CTk):
 
         self.tree_single = ttk.Treeview(
         frame,
-        columns=("S500","UC600","XM90","XM70","XM30","XM32","PM014","Price","Width"),
+        columns=("S500","UC600","S800","XM90","XM70","XM30","XM32","PM014","Price","Width"),
         show="headings",
-        height=6,
+        height=5,
         style="Custom.Treeview"
         )
 
@@ -207,9 +219,9 @@ class App(ctk.CTk):
         else:
             self._update_image_display(self.original_images[self.current_controller], center_if_needed=True)
 
-    def _on_controller_select(self, new_ctrl: str):  # 🔧 Updated
+    def _on_controller_select(self, new_ctrl: str):
         self.current_controller = new_ctrl
-        self.zoom_factor = 0.23  # Reset zoom
+        self.zoom_factor = self.zoom_factors.get(new_ctrl, 0.3)  # fallback if missing
         pil_image = self.original_images[new_ctrl]
         self._update_image_display(pil_image)
 
@@ -250,7 +262,7 @@ class App(ctk.CTk):
         self._update_image_display(pil_image, center_if_needed=False)  # 🟡 KEY CHANGE
 
     def _reset_zoom(self, event=None):
-        self.zoom_factor = 0.23
+        self.zoom_factor = self.zoom_factors.get(self.current_controller, 0.3)  # fallback if missing
         pil_image = self.original_images[self.current_controller]
         self._update_image_display(pil_image, center_if_needed=True)
 
@@ -373,7 +385,7 @@ class App(ctk.CTk):
 
         # === Controller dropdown ===
         self.multi_controller_choice = ctk.CTkOptionMenu(
-            top_frame, values=["S500", "UC600"], width=100
+            top_frame, values=["S500", "UC600", "S800"], width=100
         )
         ToolTip(self.multi_controller_choice, text="Choose which controller to use for all systems in the spreadsheet")
         self.multi_controller_choice.set("S500")
@@ -404,6 +416,16 @@ class App(ctk.CTk):
             self.multi_input_table.heading(col, text=col)
             self.multi_input_table.column(col, width=100, anchor="center")
         self.multi_input_table.pack(fill="both", expand=True, pady=5, padx=5)
+        self.multi_input_table.bind("<Double-1>", self.edit_cell)
+
+        self.table_hint_label = ctk.CTkLabel(
+            frame,
+            text="💡 Double Click to edit table cells. Press Enter to save changes.",
+            text_color="gray",
+            font=("Arial", 11)
+        )
+        self.table_hint_label.pack(pady=(2, 2))
+
 
         # === Output table ===
         self.multi_result_table = ttk.Treeview(frame, columns=("System","S500","UC600","XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"), show="headings", height=6, style="Custom.Treeview")
@@ -545,6 +567,44 @@ class App(ctk.CTk):
                 messagebox.showerror("Error", f"Calculation failed\n{e}")
         threading.Thread(target=thread_fn, daemon=True).start()
 
+
+    def edit_cell(self, event):
+        # Identify clicked region
+        region = self.multi_input_table.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        row_id = self.multi_input_table.identify_row(event.y)
+        col_id = self.multi_input_table.identify_column(event.x)
+
+        # Get column index and name
+        col_index = int(col_id.replace("#", "")) - 1
+        col_name = self.multi_input_table["columns"][col_index]
+
+        # Get existing value
+        item = self.multi_input_table.item(row_id)
+        old_value = item["values"][col_index]
+
+        # Get cell coordinates
+        x, y, width, height = self.multi_input_table.bbox(row_id, col_id)
+
+        # Create entry widget
+        entry = tk.Entry(self.multi_input_table)
+        entry.insert(0, old_value)
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.focus()
+
+        def on_enter(event=None):
+            new_value = entry.get()
+            # Update value in the Treeview
+            item["values"][col_index] = new_value
+            self.multi_input_table.item(row_id, values=item["values"])
+            entry.destroy()
+
+        entry.bind("<Return>", on_enter)
+        entry.bind("<FocusOut>", on_enter)
+
+    # --- Save results from multiple systems ---
     def save_multi_results(self):
         if not self.multi_result_table.get_children():
             messagebox.showwarning("No Results", "No results to save.")

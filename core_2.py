@@ -62,7 +62,7 @@ class System:
                     qty_pm014 = max(0, math.ceil((total_xm30_32 - (2 * total_xm90_70) - 2) / 11))
 
                 controller_name = self.system_controller.name
-                combination_ordered = OrderedDict({"S500": 0, "UC600": 0})
+                combination_ordered = OrderedDict({"S500": 0, "UC600": 0,"S800":0})
                 combination_ordered[controller_name] = 1
 
                 for exp in self.expansions:
@@ -105,10 +105,10 @@ class System:
 
     def filter_combinations(self, combinations):
         if not combinations:
-            return pd.DataFrame(columns=["S500", "UC600", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"])
+            return pd.DataFrame(columns=["S500", "UC600","S800", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"])
     
         df = pd.DataFrame(combinations).sort_values(by="Price").reset_index(drop=True).head(500)
-        df.columns = ["S500", "UC600", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"]
+        df.columns = ["S500", "UC600", "S800", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"]
     
         expansion_cols = ["XM90", "XM70", "XM30", "XM32", "PM014"]
     
