@@ -26,7 +26,7 @@ class ToolTip:
             borderwidth=1,
             justify="left",
             wraplength=250,
-            font=("TkDefaultFont", 9)
+            font=("TkDefaultFont", 11)
         )
         label.pack(ipadx=5, ipady=2)
 
