@@ -1,10 +1,11 @@
 Important:
 - Fix resultion issues: Modify image size depending on the user screen resolution
 - Total VA requirements
-
+- Template download
+- Add row
 
 Good to have:
-- Add the S800 as a controller
+
 
 Implemented updates:
 - Progress indicator during calculations
@@ -12,5 +13,5 @@ Implemented updates:
 - Include PM014 checkbox
 - Datasheets
 - Tooltips
-
+- Add the S800 as a controller
 

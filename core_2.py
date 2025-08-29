@@ -60,6 +60,8 @@ class System:
                     total_xm30_32 = counts[2] + counts[3]
                     total_xm90_70 = counts[0] + counts[1]
                     qty_pm014 = max(0, math.ceil((total_xm30_32 - (2 * total_xm90_70) - 2) / 11))
+                    if self.system_controller.name == "S800":
+                        qty_pm014 += 1
 
                 controller_name = self.system_controller.name
                 combination_ordered = OrderedDict({"S500": 0, "UC600": 0,"S800":0})

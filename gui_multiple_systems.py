@@ -45,15 +45,15 @@ class App(ctk.CTk):
         # Baseline is 1920x1080
         base_width = 1920
         base_zoom = {
-            "S500": 0.3,
-            "UC600": 0.3,
-            "S800": 0.58
+            "S500": 0.25,
+            "UC600": 0.25,
+            "S800": 0.54
         }
-        #scaling_factor = screen_width / base_width
-        if screen_width > 1500:
-            scaling_factor = 1.0
-        else:
-            scaling_factor = 2
+        scaling_factor = screen_width / base_width
+        # if screen_width > 1500:
+        #     scaling_factor = 1.0
+        # else:
+        #     scaling_factor = 2
         # Apply scaling
         self.zoom_factors = {
             key: round(zoom * scaling_factor, 3)
@@ -215,14 +215,14 @@ class App(ctk.CTk):
         bg_color ="gray14"
         print(f"Using background color: {bg_color}")
         style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="white")
-        style.configure("Custom.Treeview.Heading", font=("Segoe UI", 12, "bold"))  # Column titles
-        style.configure("Custom.Treeview", font=("Segoe UI", 12))  # Row content
+        style.configure("Custom.Treeview.Heading", font=("Segoe UI", 11, "bold"))  # Column titles
+        style.configure("Custom.Treeview", font=("Segoe UI", 10))  # Row content
 
         self.tree_single = ttk.Treeview(
         frame,
         columns=("S500","UC600","S800","XM90","XM70","XM30","XM32","PM014","Price","Width"),
         show="headings",
-        height=5,
+        height=8,
         style="Custom.Treeview"
         )
 
