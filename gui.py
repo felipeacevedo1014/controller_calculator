@@ -56,8 +56,8 @@ class App(ctk.CTk):
         # Baseline is 1920x1080
         base_width = 1920
         base_zoom = {
-            "S500": 0.25,
-            "UC600": 0.25,
+            "S500": 0.28,
+            "UC600": 0.27,
             "S800": 0.54
         }
         scaling_factor = screen_width / base_width
