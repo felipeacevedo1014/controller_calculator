@@ -15,4 +15,7 @@ Implemented updates:
 - Add/Delete row
 - Template download
 
+pyinstaller app.spec --clean --noconfirm
+
+
 

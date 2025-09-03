@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 
 from core import Controller, fetch_prices, run_calculations, run_building_calculations
 from tooltip import ToolTip
-from updater import check_for_updates
+from updater import check_for_updates 
 from version import __version__, __app_name__
 
 
@@ -30,8 +30,13 @@ class App(ctk.CTk):
         self.geometry("1020x580")
         self.resizable(True, False)
 
-        check_for_updates()
-        print("Running version:", __version__)
+        try:
+            check_for_updates()
+        except Exception as e:
+            # Don't crash the app if updater fails
+            import traceback
+            print("Updater error:", e)
+            traceback.print_exc()
 
         # --- controllers & pricing setup ---
         self.controllers = self.initialize_controllers()

@@ -1,0 +1,21 @@
+
+=== check_for_updates ===
+Local version: 1.2.0
+Remote tag: v1.3.0
+Assets: ['points_calculator_1.3.0_win64.zip']
+Picked asset: None
+Required asset 'points_calculator.exe' not found -> abort
+
+=== check_for_updates ===
+Local version: 1.2.0
+Remote tag: v1.3.0
+Assets: ['points_calculator_1.3.0_win64.zip']
+Picked asset: None
+Required asset 'points_calculator.exe' not found -> abort
+
+=== check_for_updates ===
+Local version: 1.2.0
+Remote tag: v1.3.0
+Assets: ['points_calculator_1.3.0_win64.zip']
+Picked asset: None
+Required asset 'points_calculator.exe' not found -> abort
