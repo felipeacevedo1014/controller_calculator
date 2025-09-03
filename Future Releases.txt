@@ -1,8 +1,6 @@
 Important:
 - Fix resultion issues: Modify image size depending on the user screen resolution
 - Total VA requirements
-- Template download
-- Add row
 
 Good to have:
 
@@ -14,4 +12,7 @@ Implemented updates:
 - Datasheets
 - Tooltips
 - Add the S800 as a controller
+- Add/Delete row
+- Template download
+
 
