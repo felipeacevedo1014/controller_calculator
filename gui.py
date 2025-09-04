@@ -26,7 +26,6 @@ except Exception:
         pass
 
 
-
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
@@ -34,25 +33,31 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # === DPI-aware UI scaling ===
+        # === UI scaling ===
+        self.ui_scale = 1  
+
         self.update_idletasks()
         try:
             dpi = self.winfo_fpixels('1i')  # pixels per inch for current monitor
         except Exception:
             dpi = 96.0
-        self.ui_scale = max(0.8, min(2.0, dpi / 96.0))*0.7  # clamp for sanity
+        self.ui_scale = max(0.8, min(2.0, dpi / 96.0))*0.9  # clamp for sanity
+
+                
+        print(f"UI Scale: {self.ui_scale}")
         # Apply to customtkinter & Tk
-        ctk.set_widget_scaling(self.ui_scale)
-        ctk.set_window_scaling(self.ui_scale)
-        self.tk.call('tk', 'scaling', dpi / 72.0)
+        #ctk.set_widget_scaling(1)
+        #ctk.set_window_scaling(1)
+        #self.tk.call('tk', 'scaling', self.ui_scale)
         self.title(f"{__app_name__} v{__version__}")
         # --- fonts ---
-        self.font_main = ("Arial", int(round(11 * self.ui_scale)))
-        self.font_tree = ("Arial", int(round(10 * self.ui_scale)))
+        self.font_main = ("Calibri", 14)
+        self.font_tree = ("Calibri", int(round(12*self.ui_scale)))
+        print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
         
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry("1020x580")
-        self.resizable(True, False)
+        self.geometry(f"1020x560")
+        self.resizable(True, True)
 
         try:
             check_for_updates()
@@ -79,16 +84,15 @@ class App(ctk.CTk):
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         base_zoom = {
-            "S500": 0.35,
-            "UC600": 0.35,
-            "S800": 0.7
+            "S500": self.ui_scale * 0.25,
+            "UC600": self.ui_scale * 0.25,
+            "S800": self.ui_scale * 0.42
         }
         self.zoom_factors = {
             key: round(zoom * self.ui_scale, 3)
             for key, zoom in base_zoom.items()
         }
         self.zoom_factor = self.zoom_factors["S500"]  # or default controller
-        print(f"Screen resolution: {screen_width}x{screen_height}")
         print("Zoom factors:", self.zoom_factors)
 
         def resource_path(rel_path: str) -> str:
@@ -129,8 +133,14 @@ class App(ctk.CTk):
         self.build_resources_tab()
 
         # --- status label ---
-        self.status_label = ctk.CTkLabel(self, text="",font=self.font_tree)
+        self.status_label = ctk.CTkLabel(self, text="",font=self.font_main)
         self.status_label.pack()
+
+        # --- VERSION label ---
+        self.version_label = ctk.CTkLabel(self, text=f"Version: {__version__}",font=self.font_main)
+        self.version_label.pack(side="left", padx=10, pady=(0,5)) 
+
+
 
     def initialize_controllers(self):
         uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120)
@@ -181,7 +191,7 @@ class App(ctk.CTk):
             frame,
             text="🔍 Hold Ctrl and scroll to zoom. Click and drag to pan. Double Click to reset the zoom",
             text_color="gray",
-            font=self.font_tree
+            font=self.font_main
         )
         self.zoom_hint_label.grid(row=8, column=2, pady=(2, 2), sticky="nsew")
         # Initialize canvas image handle
@@ -254,15 +264,16 @@ class App(ctk.CTk):
         style.configure("Custom.Treeview", font=self.font_tree)  # Row content
 
         # Scaled row height
-        body_font = tkfont.Font(family="Arial", size=self.font_tree[1])
-        row_h = body_font.metrics("linespace") + int(8 * self.ui_scale)
+        body_font = tkfont.Font(family="Arial", size=self.font_main[1])
+        row_h = body_font.metrics("linespace") + int(6 * self.ui_scale)
+        #row_h = body_font.metrics("linespace")
         style.configure("Custom.Treeview", rowheight=row_h)
 
         self.tree_single = ttk.Treeview(
         frame,
         columns=("S500","UC600","S800","XM90","XM70","XM30","XM32","PM014","Price","Width"),
         show="headings",
-        height=6,
+        height=5,
         style="Custom.Treeview"
         )
 
@@ -517,7 +528,7 @@ class App(ctk.CTk):
             frame,
             columns=("System", "BO", "BI", "UI", "AO", "AI", "PRESSURE"),
             show="headings",
-            height=6,
+            height=5,
             style="Custom.Treeview",
             selectmode="extended"
         )
@@ -535,7 +546,7 @@ class App(ctk.CTk):
             frame,
             text="💡 Double Click to edit table cells. Press Enter to save changes.",
             text_color="gray",
-            font=self.font_tree
+            font=self.font_main
         )
         self.table_hint_label.pack(pady=(2, 2))
 
@@ -672,7 +683,8 @@ class App(ctk.CTk):
                 self.multi_result_table["columns"] = columns
                 for col in columns:
                     self.multi_result_table.heading(col, text=col)
-                    self.multi_result_table.column(col, width=90, anchor="center")
+                    self.multi_result_table.column(col, width=85, anchor="center")
+                self.multi_result_table.column("System Name", width=150)
 
                 for _, row in results_df.iterrows():
                     formatted = []
