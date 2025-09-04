@@ -47,7 +47,7 @@ class App(ctk.CTk):
         self.tk.call('tk', 'scaling', dpi / 72.0)
         self.title(f"{__app_name__} v{__version__}")
         # --- fonts ---
-        self.font_main = ("Arial", int(round(12 * self.ui_scale)))
+        self.font_main = ("Arial", int(round(11 * self.ui_scale)))
         self.font_tree = ("Arial", int(round(10 * self.ui_scale)))
         
         self.title("Trane Controller & Expansion Calculator")
@@ -72,15 +72,16 @@ class App(ctk.CTk):
         ]
 
         # --- zoom setup 🔧 ---
+        self.center_locked = True  # keep image centered until user pans/zooms
         self.image_x = 0
         self.image_y = 0
 
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         base_zoom = {
-            "S500": 0.28,
-            "UC600": 0.27,
-            "S800": 0.54
+            "S500": 0.35,
+            "UC600": 0.35,
+            "S800": 0.7
         }
         self.zoom_factors = {
             key: round(zoom * self.ui_scale, 3)
@@ -174,6 +175,8 @@ class App(ctk.CTk):
         self.canvas_frame.grid(row=1, column=2, rowspan=6, sticky="nsew")
         self.canvas = tk.Canvas(self.canvas_frame, bg="#2b2b2b", highlightthickness=0)
         self.canvas.pack(expand=True, fill="both")
+        # Recenter image when canvas resizes (only if center_locked)
+        self.canvas.bind("<Configure>", self._on_canvas_resize)
         self.zoom_hint_label = ctk.CTkLabel(
             frame,
             text="🔍 Hold Ctrl and scroll to zoom. Click and drag to pan. Double Click to reset the zoom",
@@ -278,6 +281,7 @@ class App(ctk.CTk):
     def _on_controller_select(self, new_ctrl: str):
         self.current_controller = new_ctrl
         self.zoom_factor = self.zoom_factors[new_ctrl]
+        self.center_locked = True
         pil_image = self.original_images[new_ctrl]
         self._update_image_display(pil_image)
 
@@ -286,6 +290,7 @@ class App(ctk.CTk):
         new_size = (int(w * self.zoom_factor), int(h * self.zoom_factor))
         resized = pil_image.resize(new_size, Image.LANCZOS)
         self.tk_image = ImageTk.PhotoImage(resized)
+        self.current_drawn_size = new_size  # track for recenter on resize
 
         # If we want to center on first load/reset
         if center_if_needed:
@@ -293,6 +298,7 @@ class App(ctk.CTk):
             canvas_height = self.canvas.winfo_height()
             self.image_x = (canvas_width - new_size[0]) // 2
             self.image_y = (canvas_height - new_size[1]) // 2
+            self.center_locked = True
 
         self.canvas.delete("all")
         self.canvas_image_id = self.canvas.create_image(
@@ -301,7 +307,25 @@ class App(ctk.CTk):
             anchor="nw",
             image=self.tk_image
         )
+
+    def _on_canvas_resize(self, event=None):
+        # Keep centered only if user hasn't panned/zoomed intentionally
+        if not getattr(self, "center_locked", False):
+            return
+        if not getattr(self, "canvas_image_id", None) or not getattr(self, "current_drawn_size", None):
+            return
+        cw = self.canvas.winfo_width()
+        ch = self.canvas.winfo_height()
+        iw, ih = self.current_drawn_size
+        self.image_x = (cw - iw) // 2
+        self.image_y = (ch - ih) // 2
+        try:
+            self.canvas.coords(self.canvas_image_id, self.image_x, self.image_y)
+        except Exception:
+            pass
+
     def _on_mousewheel_zoom(self, event):
+        self.center_locked = False
         canvas_mouse_x = self.canvas.canvasx(event.x)
         canvas_mouse_y = self.canvas.canvasy(event.y)
         rel_x = canvas_mouse_x - self.image_x
@@ -319,6 +343,7 @@ class App(ctk.CTk):
 
     def _reset_zoom(self, event=None):
         self.zoom_factor = self.zoom_factors[self.current_controller]
+        self.center_locked = True
         pil_image = self.original_images[self.current_controller]
         self._update_image_display(pil_image, center_if_needed=True)
 
@@ -384,6 +409,7 @@ class App(ctk.CTk):
             messagebox.showerror("Error", f"Invalid input: {e}")
 
     def _start_pan(self, event):
+        self.center_locked = False
         self.pan_start_x = event.x
         self.pan_start_y = event.y
 
