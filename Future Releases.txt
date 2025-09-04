@@ -17,5 +17,8 @@ Implemented updates:
 
 pyinstaller app.spec --clean --noconfirm
 
+pip install -U pyinstaller packaging requests certifi
+pyinstaller --noconfirm --onefile --name controller_calculator gui.py
+
 
 

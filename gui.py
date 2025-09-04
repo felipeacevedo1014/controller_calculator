@@ -8,11 +8,23 @@ import math
 import webbrowser
 import requests
 from PIL import Image, ImageTk
+import ctypes
+import tkinter.font as tkfont
 
 from core import Controller, fetch_prices, run_calculations, run_building_calculations
 from tooltip import ToolTip
 from updater import check_for_updates 
 from version import __version__, __app_name__
+
+# --- Enable per-monitor DPI awareness on Windows (must be set before creating the Tk root) ---
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor v2 (Win 8.1+)
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()    # Older fallback
+    except Exception:
+        pass
+
 
 
 ctk.set_appearance_mode("System")
@@ -21,10 +33,22 @@ ctk.set_default_color_theme("blue")
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
+
+        # === DPI-aware UI scaling ===
+        self.update_idletasks()
+        try:
+            dpi = self.winfo_fpixels('1i')  # pixels per inch for current monitor
+        except Exception:
+            dpi = 96.0
+        self.ui_scale = max(0.8, min(2.0, dpi / 96.0))*0.7  # clamp for sanity
+        # Apply to customtkinter & Tk
+        ctk.set_widget_scaling(self.ui_scale)
+        ctk.set_window_scaling(self.ui_scale)
+        self.tk.call('tk', 'scaling', dpi / 72.0)
         self.title(f"{__app_name__} v{__version__}")
         # --- fonts ---
-        self.font_main = ("Arial", 14)
-        self.font_tree = ("Arial", 12)
+        self.font_main = ("Arial", int(round(12 * self.ui_scale)))
+        self.font_tree = ("Arial", int(round(10 * self.ui_scale)))
         
         self.title("Trane Controller & Expansion Calculator")
         self.geometry("1020x580")
@@ -53,21 +77,13 @@ class App(ctk.CTk):
 
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        # Baseline is 1920x1080
-        base_width = 1920
         base_zoom = {
             "S500": 0.28,
             "UC600": 0.27,
             "S800": 0.54
         }
-        scaling_factor = screen_width / base_width
-        # if screen_width > 1500:
-        #     scaling_factor = 1.0
-        # else:
-        #     scaling_factor = 2
-        # Apply scaling
         self.zoom_factors = {
-            key: round(zoom * scaling_factor, 3)
+            key: round(zoom * self.ui_scale, 3)
             for key, zoom in base_zoom.items()
         }
         self.zoom_factor = self.zoom_factors["S500"]  # or default controller
@@ -112,7 +128,7 @@ class App(ctk.CTk):
         self.build_resources_tab()
 
         # --- status label ---
-        self.status_label = ctk.CTkLabel(self, text="",font=("Arial", 14))
+        self.status_label = ctk.CTkLabel(self, text="",font=self.font_tree)
         self.status_label.pack()
 
     def initialize_controllers(self):
@@ -231,14 +247,19 @@ class App(ctk.CTk):
         bg_color ="gray14"
         print(f"Using background color: {bg_color}")
         style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="white")
-        style.configure("Custom.Treeview.Heading", font=("Arial", 14, "bold"))  # Column titles
+        style.configure("Custom.Treeview.Heading", font=(self.font_tree[0], self.font_tree[1], "bold"))
         style.configure("Custom.Treeview", font=self.font_tree)  # Row content
+
+        # Scaled row height
+        body_font = tkfont.Font(family="Arial", size=self.font_tree[1])
+        row_h = body_font.metrics("linespace") + int(8 * self.ui_scale)
+        style.configure("Custom.Treeview", rowheight=row_h)
 
         self.tree_single = ttk.Treeview(
         frame,
         columns=("S500","UC600","S800","XM90","XM70","XM30","XM32","PM014","Price","Width"),
         show="headings",
-        height=8,
+        height=6,
         style="Custom.Treeview"
         )
 
@@ -609,7 +630,7 @@ class App(ctk.CTk):
                 if exceeded:
                     messagebox.showwarning(
                         "Point Capacity Exceeded",
-                        f"The following systems exceed {ctrl.name}'s capacity of {controller_limit} points." + "".join(exceeded)
+                        f"The following systems exceed {ctrl.name}'s capacity of {controller_limit} points: " + "".join(exceeded)
                     )
                     return
 
@@ -665,7 +686,7 @@ class App(ctk.CTk):
         x, y, width, height = self.multi_input_table.bbox(row_id, col_id)
 
         # Create entry widget
-        entry = tk.Entry(self.multi_input_table, font=("Arial", 14))
+        entry = tk.Entry(self.multi_input_table, font=self.font_main)
         entry.insert(0, old_value)
         entry.place(x=x, y=y, width=width, height=height)
         entry.focus()
