@@ -34,15 +34,10 @@ class App(ctk.CTk):
         super().__init__()
 
         # === UI scaling ===
-        self.ui_scale = 1  
-
-        self.update_idletasks()
-        try:
-            dpi = self.winfo_fpixels('1i')  # pixels per inch for current monitor
-        except Exception:
-            dpi = 96.0
-        self.ui_scale = max(0.8, min(2.0, dpi / 96.0))*0.9  # clamp for sanity
-
+        screen_height = self.winfo_screenheight()
+        screen_width = self.winfo_screenwidth()
+        print(f"Screen size: {screen_width}x{screen_height}")
+        self.ui_scale = (0.19*screen_height/1000 + 0.59)
                 
         print(f"UI Scale: {self.ui_scale}")
         # Apply to customtkinter & Tk
@@ -52,7 +47,7 @@ class App(ctk.CTk):
         self.title(f"{__app_name__} v{__version__}")
         # --- fonts ---
         self.font_main = ("Calibri", 14)
-        self.font_tree = ("Calibri", int(round(12*self.ui_scale)))
+        self.font_tree = ("Calibri", int(round(10*self.ui_scale)))
         print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
         
         self.title("Trane Controller & Expansion Calculator")
@@ -84,9 +79,9 @@ class App(ctk.CTk):
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         base_zoom = {
-            "S500": self.ui_scale * 0.25,
-            "UC600": self.ui_scale * 0.25,
-            "S800": self.ui_scale * 0.42
+            "S500": self.ui_scale * 0.3,
+            "UC600": self.ui_scale * 0.3,
+            "S800": self.ui_scale * 0.55
         }
         self.zoom_factors = {
             key: round(zoom * self.ui_scale, 3)

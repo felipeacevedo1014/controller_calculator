@@ -105,7 +105,7 @@ class System:
             for key in total_points:
                 total_points[key] += expansion_points[key]
         return total_points
-
+        
     def valid_combination(self, total_points):
         sp = self.system_points
         tp = total_points
@@ -181,8 +181,9 @@ def run_calculations(system_points, system_controller, expansions_list, pm014, i
     return System(system_points, system_controller, expansions_list, pm014, include_pm014).find_combinations()
 
 def run_building_calculations(building_df, system_controller, expansions_list, pm014, include_pm014, spare_points):
-    building_df.iloc[:, 1:-1] = building_df.iloc[:, 1:-1].applymap(lambda x: math.ceil(x * (1 + spare_points / 100)))
     building_df.columns = ["System Name", "BO", "BI", "UI", "AO", "AI", "PRESSURE"]
+    for col in ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]:
+        building_df[col] = building_df[col].apply(lambda x: math.ceil(x * (1 + spare_points / 100)))
     results_list = []
     for row in building_df.itertuples(index=False):
         system_points = {"BO": row[1], "BI": row[2], "UI": row[3], "AO": row[4], "AI": row[5], "PRESSURE": row[6]}
