@@ -37,21 +37,22 @@ class App(ctk.CTk):
         screen_height = self.winfo_screenheight()
         screen_width = self.winfo_screenwidth()
         print(f"Screen size: {screen_width}x{screen_height}")
-        self.ui_scale = (0.19*screen_height/1000 + 0.59)
+        #self.ui_scale = (0.19*screen_height/1000 + 0.59)
+        self.ui_scale = 1.4 if screen_height > 1080 else 1
                 
         print(f"UI Scale: {self.ui_scale}")
         # Apply to customtkinter & Tk
-        #ctk.set_widget_scaling(1)
-        #ctk.set_window_scaling(1)
-        #self.tk.call('tk', 'scaling', self.ui_scale)
+        #ctk.set_widget_scaling(self.ui_scale)
+        #ctk.set_window_scaling(self.ui_scale)
+        self.tk.call('tk', 'scaling', self.ui_scale)
         self.title(f"{__app_name__} v{__version__}")
         # --- fonts ---
         self.font_main = ("Calibri", 14)
-        self.font_tree = ("Calibri", int(round(10*self.ui_scale)))
+        self.font_tree = ("Calibri", int(round(12*self.ui_scale)))
         print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
         
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry(f"1020x560")
+        self.geometry(f"1020x600")
         self.resizable(True, True)
 
         try:
