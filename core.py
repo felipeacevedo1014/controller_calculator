@@ -6,7 +6,66 @@ from io import StringIO
 from collections import OrderedDict
 
 ALL_EXPANSION_NAMES = ["XM90", "XM70", "XM30", "XM32"]
-EXPECTED_COLUMNS = ["S500", "UC600", "S800", "XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"]
+EXPECTED_COLUMNS = [
+    "S500","UC600","S800","XM90","XM70","XM30","XM32","PM014",
+    "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESSURE Left",
+    "Total VA","Price","Width"
+]
+
+
+def compute_left_points(system_points: dict, total_points: dict) -> dict:
+    """
+    Compute remaining (left) points per category AFTER satisfying the system demand.
+    This version exposes dual-category pools explicitly (UI/AO and BI/AO).
+    """
+
+    sp = {k: int(system_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","AO","PRESSURE"]}
+    tp = {k: int(total_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","UIAO","BIAO","PRESSURE"]}
+
+    # Hard types
+    bo_left = max(0, tp["BO"] - sp["BO"])
+    pressure_left = max(0, tp["PRESSURE"] - sp["PRESSURE"])
+
+    # Start with full pools
+    rem_UI   = tp["UI"]
+    rem_AI   = tp["AI"]
+    rem_UIAO = tp["UIAO"]
+    rem_BI   = tp["BI"]
+    rem_BIAO = tp["BIAO"]
+
+    # ---- Satisfy requirements (consume pools) ----
+
+    # UI → UI first, then UIAO
+    need = sp["UI"]
+    use = min(rem_UI, need); rem_UI -= use; need -= use
+    use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
+
+    # AI → AI first, then UI, then UIAO
+    need = sp["AI"]
+    use = min(rem_AI, need); rem_AI -= use; need -= use
+    use = min(rem_UI, need); rem_UI -= use; need -= use
+    use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
+
+    # AO → UIAO then BIAO
+    need = sp["AO"]
+    use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
+    use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
+
+    # BI → BI first, then BIAO
+    need = sp["BI"]
+    use = min(rem_BI, need); rem_BI -= use; need -= use
+    use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
+
+    return {
+        "BO Left": bo_left,
+        "BI Left": rem_BI,
+        "UI Left": rem_UI,
+        "AI Left": rem_AI,
+        "UI/AO Left": rem_UIAO,
+        "BI/AO Left": rem_BIAO,
+        "PRESSURE Left": pressure_left,
+    }
+
 
 class Controller:
     def __init__(self, name, price=0, power_AC=0, power_DC=0, width=0, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0):
@@ -92,6 +151,15 @@ class System:
             for name in ALL_EXPANSION_NAMES:
                 ordered[name] = counts_map[name]
             ordered["PM014"] = qty_pm014
+            left_map = compute_left_points(self.system_points, combination_points)
+            for k, v in left_map.items():
+                ordered[k] = v
+
+            total_va = self.system_controller.power_AC
+            total_va += sum(exp.power_AC * counts_map[exp.name] for exp in self.expansions)
+            total_va += self.pm014.power_AC * qty_pm014
+            ordered["Total VA"] = total_va
+
             ordered["Price"] = round(price + self.system_controller.price + (self.pm014.price * qty_pm014), 2)
             ordered["Width"] = round(width + self.system_controller.width + (self.pm014.width * qty_pm014), 2)
             total_combinations.append(ordered)
@@ -169,13 +237,53 @@ class Enclosure:
         self.rail_size = rail_size
         self.tx_qty = tx_qty
 
+DEFAULT_PRICES_TEXT = """uc600,BMUC600AAA0100011,1085.22
+s500,BMSY500AAA0100011,473.68
+xm90,X13651701001,1210.74
+xm70,x13651568010,787.21
+xm30,X13651537010,314.73
+xm32,X13651563010,314.73
+s800,X13651678002,1391.54
+pm014,X13651538-01,198.31
+"""
+# These will let the GUI know what happened
+PRICES_FALLBACK_USED = False
+PRICES_USED_DF = None
+PRICES_FETCH_ERROR = ""
+
 def fetch_prices(prices_url):
+    """
+    Returns a DataFrame with columns:
+    0 = name, 1 = part number, 2 = price
+    If live fetch fails, returns DEFAULT_PRICES instead.
+    """
+    global PRICES_FALLBACK_USED, PRICES_USED_DF, PRICES_FETCH_ERROR
+
     try:
-        response = requests.get(url=prices_url)
+        response = requests.get(url=prices_url, timeout=10)
         response.raise_for_status()
-        return pd.read_csv(StringIO(response.text), encoding="utf-8", sep=",", header=None)
+        df = pd.read_csv(StringIO(response.text), encoding="utf-8", sep=",", header=None)
+        # Defensive cleanup
+        df[0] = df[0].astype(str).str.strip().str.lower()
+        df[1] = df[1].astype(str).str.strip()
+        df[2] = df[2].astype(str).str.strip().astype(float)
+
+        PRICES_FALLBACK_USED = False
+        PRICES_FETCH_ERROR = ""
+        PRICES_USED_DF = df
+        return df
+
     except Exception as e:
-        raise RuntimeError("Failed to fetch prices") from e
+        # Fallback to embedded defaults
+        df = pd.read_csv(StringIO(DEFAULT_PRICES_TEXT), encoding="utf-8", sep=",", header=None)
+        df[0] = df[0].astype(str).str.strip().str.lower()
+        df[1] = df[1].astype(str).str.strip()
+        df[2] = df[2].astype(str).str.strip().astype(float)
+
+        PRICES_FALLBACK_USED = True
+        PRICES_FETCH_ERROR = str(e)
+        PRICES_USED_DF = df
+        return df
 
 def run_calculations(system_points, system_controller, expansions_list, pm014, include_pm014):
     return System(system_points, system_controller, expansions_list, pm014, include_pm014).find_combinations()
@@ -197,5 +305,6 @@ def run_building_calculations(building_df, system_controller, expansions_list, p
     results_df = pd.DataFrame(results_list, columns=columns)
     totals = results_df.iloc[:, 1:].sum()
     totals.loc["System Name"] = "Total"
+    
     results_df.loc[len(results_df.index)] = totals
     return results_df

@@ -10,9 +10,9 @@ import requests
 from PIL import Image, ImageTk
 import ctypes
 import tkinter.font as tkfont
+import core
 
 from core import Controller, fetch_prices, run_calculations, run_building_calculations
-from tooltip import ToolTip
 from updater import check_for_updates 
 from version import __version__, __app_name__
 
@@ -52,7 +52,7 @@ class App(ctk.CTk):
         print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
         
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry(f"1020x600")
+        self.geometry(f"1300x650")
         self.resizable(True, True)
 
         try:
@@ -139,14 +139,14 @@ class App(ctk.CTk):
 
 
     def initialize_controllers(self):
-        uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120)
-        s500 =  Controller("S500",  power_AC=24, width=5.65,AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133)
-        s800 =  Controller("S800",  power_DC=24, width=5.65, max_point_capacity=500)
-        xm90 =  Controller("XM90",  power_AC=50, width=8.5, UI=16, UIAO=8, BO=8)
-        xm70 =  Controller("XM70",  power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1)
-        xm30 =  Controller("XM30",  power_DC=120, width=2.11, UIAO=4)
-        xm32 =  Controller("XM32",  power_DC=100, width=2.82, BO=4)
-        pm014 = Controller("PM014", power_AC=20, width=5)
+        uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120,price=1085.22)
+        s500 =  Controller("S500",  power_AC=24, width=5.65,AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133,price=473.68)
+        s800 =  Controller("S800",  power_DC=24, width=5.65, max_point_capacity=500,price=1391.54)
+        xm90 =  Controller("XM90",  power_AC=50, width=8.5, UI=16, UIAO=8, BO=8,price=1210.74)
+        xm70 =  Controller("XM70",  power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1,price=787.21)
+        xm30 =  Controller("XM30",  power_DC=120, width=2.11, UIAO=4,price=314.73)
+        xm32 =  Controller("XM32",  power_DC=100, width=2.82, BO=4,price=314.73)
+        pm014 = Controller("PM014", power_AC=75, width=5,price=198.31)
 
         prices_url = "https://raw.githubusercontent.com/felipeacevedo1014/controller_calculator/refs/heads/main/prices.csv"
         prices_df = fetch_prices(prices_url)
@@ -165,6 +165,22 @@ class App(ctk.CTk):
             "S800":  s800,
             "PM014": pm014,
         }
+    
+    if core.PRICES_FALLBACK_USED:
+        # Build readable lines like "uc600: $1085.22"
+        lines = []
+        for _, row in core.PRICES_USED_DF.iterrows():
+            name = str(row[0]).strip()
+            price = float(row[2])
+            lines.append(f"{name}: ${price:,.2f}")
+
+        messagebox.showwarning(
+            "Live prices unavailable",
+            "Live price fetch failed, so DEFAULT prices are being used.\n\n"
+            + "\n".join(lines)
+            + f"\n\nError details:\n{core.PRICES_FETCH_ERROR}"
+        )
+
 
     def build_single_system_tab(self):
         frame = ctk.CTkFrame(self.tab_system)
@@ -223,13 +239,11 @@ class App(ctk.CTk):
         )
         self.controller_choice.set("S500")
         self.controller_choice.grid(row=0, column=3, padx=10, columnspan=2, sticky="e")
-        ToolTip(self.controller_choice, text="Choose a controller: UC600, S500 or S800.")
 
         ctk.CTkLabel(frame, text="Spare Points[%]", font=self.font_main).grid(row=1, column=3, sticky="w", padx=2)
         self.spare_spin = ctk.CTkEntry(frame, width=50, font=self.font_main)
         self.spare_spin.insert(0, "0")
         self.spare_spin.grid(row=1, column=3, columnspan=2, pady=2, padx=(0,5), sticky="e")
-        ToolTip(self.spare_spin, text="Add spare points to each type (e.g. 10% means 10% more points calculated)")
 
         self.expansion_vars = {}
         for idx, exp in enumerate(["XM90", "XM70", "XM30", "XM32"]):
@@ -267,16 +281,21 @@ class App(ctk.CTk):
 
         self.tree_single = ttk.Treeview(
         frame,
-        columns=("S500","UC600","S800","XM90","XM70","XM30","XM32","PM014","Price","Width"),
+        columns=(
+            "S500","UC600","S800","XM90","XM70","XM30","XM32","PM014",
+            "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESS Left",
+            "Total VA","Price","Width [in]"),
         show="headings",
         height=5,
         style="Custom.Treeview"
         )
-
-
+        count_cols = {"S500","UC600","S800","XM90","XM70","XM30","XM32","PM014"}
+        COUNT_W = 70
+        OTHER_W = 105
         for col in self.tree_single["columns"]:
             self.tree_single.heading(col, text=col)
-            self.tree_single.column(col, anchor="center", width=80)
+            w = COUNT_W if col in count_cols else OTHER_W
+            self.tree_single.column(col, width=w, anchor="center")
         self.tree_single.grid(row=9, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
     def _wait_for_canvas_ready(self):
@@ -458,19 +477,18 @@ class App(ctk.CTk):
         frame = ctk.CTkFrame(self.tab_building)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # === Toolbar: 7 columns ===
+        # === Toolbar: 6 columns ===
         toolbar = ctk.CTkFrame(frame)
         toolbar.pack(fill="x", padx=5, pady=(0, 10))
 
-        # Make 7 uniform columns
-        for i in range(7):
+        # Make 6 uniform columns
+        for i in range(6):
             toolbar.grid_columnconfigure(i, weight=1, uniform="toolbar")
 
         # (text, command) in the order you want across the row
         buttons = [
             ("Download Template", self.download_template),
             ("Load File",         self.load_systems_excel),
-            ("Calculate",         self.calculate_multiple),
             ("Add Row",           self.add_multi_row),
             ("Duplicate Row(s)",  self.duplicate_multi_rows),
             ("Delete Row(s)",     self.delete_multi_rows),
@@ -487,9 +505,10 @@ class App(ctk.CTk):
             command=cmd,
             font=self.font_main,
             )
+           
             # right padding except last button
             padx = (0, 6) if col < len(buttons) - 1 else (0, 0)
-            btn.grid(row=0, column=col, padx=padx, pady=(0, 0), sticky="n")
+            btn.grid(row=0, column=col, padx=padx, pady=(0, 0), sticky="n") 
 
 
         # === Controller dropdown, expansions, spare % ===
@@ -499,7 +518,6 @@ class App(ctk.CTk):
         self.multi_controller_choice = ctk.CTkOptionMenu(
             controls_frame, values=["S500", "UC600", "S800"], width=100, font=self.font_main
         )
-        ToolTip(self.multi_controller_choice, text="Choose which controller to use for all systems in the spreadsheet")
         self.multi_controller_choice.set("S500")
         self.multi_controller_choice.pack(side="left", padx=8)  
 
@@ -517,7 +535,8 @@ class App(ctk.CTk):
         self.multi_spare_spin = ctk.CTkEntry(controls_frame, width=40, font=self.font_main)
         self.multi_spare_spin.insert(0, "0")
         self.multi_spare_spin.pack(side="left", padx=(0, 5))
-        ToolTip(self.multi_spare_spin, text="Add spare points to each type (e.g. 10% means 10% more points calculated)")
+
+        ctk.CTkButton(controls_frame, text="Calculate", command=self.calculate_multiple, font=self.font_main).pack(side="left",padx=5)
 
         # === Editable system input table ===
         self.multi_input_table = ttk.Treeview(
@@ -549,14 +568,23 @@ class App(ctk.CTk):
         # === Output table ===
         self.multi_result_table = ttk.Treeview(
             frame,
-            columns=("System","S500","UC600","XM90", "XM70", "XM30", "XM32", "PM014", "Price", "Width"),
+            columns=(
+                "System",
+                "S500","UC600","XM90","XM70","XM30","XM32","PM014",
+                "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESS Left",
+                "Total VA","Price","Width[in]"
+            ),
             show="headings",
             height=6,
             style="Custom.Treeview"
         )
+        count_cols = {"System","S500","UC600","S800","XM90","XM70","XM30","XM32","PM014"}
+        COUNT_W = 70
+        OTHER_W = 105
         for col in self.multi_result_table["columns"]:
             self.multi_result_table.heading(col, text=col)
-            self.multi_result_table.column(col, width=85, anchor="center")
+            w = COUNT_W if col in count_cols else OTHER_W
+            self.multi_result_table.column(col, width=w, anchor="center")
         self.multi_result_table.pack(fill="both", expand=True, pady=10, padx=1)
 
         # === Save button ===
@@ -677,10 +705,16 @@ class App(ctk.CTk):
                 self.multi_result_table.delete(*self.multi_result_table.get_children())
                 columns = list(results_df.columns)
                 self.multi_result_table["columns"] = columns
+
+                count_cols = {"S500","UC600","S800","XM90","XM70","XM30","XM32","PM014"}
+                COUNT_W = 70
+                OTHER_W = 105
+
                 for col in columns:
                     self.multi_result_table.heading(col, text=col)
-                    self.multi_result_table.column(col, width=85, anchor="center")
-                self.multi_result_table.column("System Name", width=150)
+                    w = COUNT_W if col in count_cols else OTHER_W
+                    self.multi_result_table.column(col, width=w, anchor="center")
+                self.multi_result_table.column("System Name", width=140)
 
                 for _, row in results_df.iterrows():
                     formatted = []

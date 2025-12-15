@@ -4,7 +4,7 @@ import requests
 from packaging.version import Version
 
 OWNER = "felipeacevedo1014"
-REPO  = "controller_calculator"
+REPO  = "controller_calculator_release"
 
 LATEST_API   = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{OWNER}/{REPO}/releases/latest"
