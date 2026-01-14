@@ -14,11 +14,6 @@ EXPECTED_COLUMNS = [
 
 
 def compute_left_points(system_points: dict, total_points: dict) -> dict:
-    """
-    Compute remaining (left) points per category AFTER satisfying the system demand.
-    This version exposes dual-category pools explicitly (UI/AO and BI/AO).
-    """
-
     sp = {k: int(system_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","AO","PRESSURE"]}
     tp = {k: int(total_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","UIAO","BIAO","PRESSURE"]}
 
@@ -26,35 +21,35 @@ def compute_left_points(system_points: dict, total_points: dict) -> dict:
     bo_left = max(0, tp["BO"] - sp["BO"])
     pressure_left = max(0, tp["PRESSURE"] - sp["PRESSURE"])
 
-    # Start with full pools
+    # Rem pools
     rem_UI   = tp["UI"]
     rem_AI   = tp["AI"]
     rem_UIAO = tp["UIAO"]
     rem_BI   = tp["BI"]
     rem_BIAO = tp["BIAO"]
 
-    # ---- Satisfy requirements (consume pools) ----
-
-    # UI → UI first, then UIAO
+    # ---- UI ----
     need = sp["UI"]
     use = min(rem_UI, need); rem_UI -= use; need -= use
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
 
-    # AI → AI first, then UI, then UIAO
+    # ---- AI ----
     need = sp["AI"]
     use = min(rem_AI, need); rem_AI -= use; need -= use
     use = min(rem_UI, need); rem_UI -= use; need -= use
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
 
-    # AO → UIAO then BIAO
+    # ---- AO ----
     need = sp["AO"]
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
     use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
 
-    # BI → BI first, then BIAO
+    # ---- BI ----
     need = sp["BI"]
     use = min(rem_BI, need); rem_BI -= use; need -= use
     use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
+    use = min(rem_UI, need); rem_UI -= use; need -= use
+    use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
 
     return {
         "BO Left": bo_left,

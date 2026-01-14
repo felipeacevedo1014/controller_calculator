@@ -262,7 +262,6 @@ class App(ctk.CTk):
         self.save_button = ctk.CTkButton(frame, text="Save Results", command=self.save_single_results, font=self.font_main)
         self.save_button.grid(row=8, column=3, pady=10, padx=5, columnspan=2)
 
-
         style = ttk.Style()
         is_dark = ctk.get_appearance_mode() == "Dark"
         print(f"Using dark mode: {is_dark}")
@@ -297,6 +296,11 @@ class App(ctk.CTk):
             w = COUNT_W if col in count_cols else OTHER_W
             self.tree_single.column(col, width=w, anchor="center")
         self.tree_single.grid(row=9, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
+        # == Horizontal scrollbar
+        hscroll = ttk.Scrollbar(frame, orient="horizontal", command=self.tree_single.xview)
+        self.tree_single.configure(xscrollcommand=hscroll.set)
+        hscroll.grid(row=10, column=0, columnspan=5, sticky="ew", padx=5)
+
 
     def _wait_for_canvas_ready(self):
         if self.canvas.winfo_width() < 10 or self.canvas.winfo_height()<10:
@@ -586,6 +590,7 @@ class App(ctk.CTk):
             w = COUNT_W if col in count_cols else OTHER_W
             self.multi_result_table.column(col, width=w, anchor="center")
         self.multi_result_table.pack(fill="both", expand=True, pady=10, padx=1)
+  
 
         # === Save button ===
         self.save_multi_button = ctk.CTkButton(
