@@ -5,9 +5,17 @@ import requests
 from io import StringIO
 from collections import OrderedDict
 
-ALL_EXPANSION_NAMES = ["XM90", "XM70", "XM30", "XM32"]
+ALL_SYSTEM_CONTROLLER_NAMES = [
+    "S500", "UC600", "S800",
+    "JACE9000", "JACE9005", "JACE9010", "JACE9025", "JACE9100", "JACE9200"
+]
+TRANE_EXPANSION_NAMES = ["XM90", "XM70", "XM30", "XM32"]
+TRIDIUM_EXPANSION_NAMES = ["IO-R-16", "IO-R-34"]
+ALL_EXPANSION_NAMES = TRANE_EXPANSION_NAMES + TRIDIUM_EXPANSION_NAMES
 EXPECTED_COLUMNS = [
-    "S500","UC600","S800","XM90","XM70","XM30","XM32","PM014",
+    *ALL_SYSTEM_CONTROLLER_NAMES,
+    *ALL_EXPANSION_NAMES,
+    "PM014",
     "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESSURE Left",
     "Total VA","Price","Width"
 ]
@@ -63,7 +71,7 @@ def compute_left_points(system_points: dict, total_points: dict) -> dict:
 
 
 class Controller:
-    def __init__(self, name, price=0, power_AC=0, power_DC=0, width=0, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0):
+    def __init__(self, name, price=0, power_AC=0, power_DC=0, width=0, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0, brand="Trane", max_io_modules=None):
         self.name = name
         self.price = price
         self.power_AC = power_AC
@@ -77,6 +85,8 @@ class Controller:
         self.BIAO = BIAO
         self.PRESSURE = PRESSURE
         self.max_point_capacity = max_point_capacity
+        self.brand = brand
+        self.max_io_modules = max_io_modules  # None = unlimited, 0 = no IO modules allowed
 
     def get_points(self, quantity):
         return {
@@ -101,11 +111,17 @@ class System:
         return int(sum(v for v in self.system_points.values() if isinstance(v, (int, float))))
 
     def _max_by_expansion(self, required_total_points: int):
+        capacity_map = {
+            "XM90": 32,
+            "XM70": 18,
+            "XM30": 4,
+            "XM32": 4,
+            "IO-R-16": 16,
+            "IO-R-34": 16,
+        }
         return {
-            "XM90": math.ceil(required_total_points / 32),
-            "XM70": math.ceil(required_total_points / 18),
-            "XM30": math.ceil(required_total_points / 4),
-            "XM32": math.ceil(required_total_points / 4),
+            name: math.ceil(required_total_points / capacity)
+            for name, capacity in capacity_map.items()
         }
 
     def find_combinations(self):
@@ -116,13 +132,18 @@ class System:
 
         # Enabled expansion names
         enabled_names = [e.name for e in self.expansions]
-        ranges = [range(exp_max_map[name] + 1) for name in enabled_names]
+        ranges = [range(exp_max_map.get(name, 0) + 1) for name in enabled_names]
 
         for counts in product(*ranges) if ranges else [()]:
             # Build counts map for all expansions; default 0 for disabled
             counts_map = {name: 0 for name in ALL_EXPANSION_NAMES}
             for name, qty in zip(enabled_names, counts):
                 counts_map[name] = qty
+
+            if self.system_controller.max_io_modules is not None:
+                tridium_io_count = sum(counts_map[name] for name in TRIDIUM_EXPANSION_NAMES)
+                if tridium_io_count > self.system_controller.max_io_modules:
+                    continue
 
             # Compute points for this combo
             combination_points = self.get_combination_points({exp: counts_map[exp.name] for exp in self.expansions})
@@ -133,7 +154,7 @@ class System:
             width = sum(exp.width * counts_map[exp.name] for exp in self.expansions)
 
             qty_pm014 = 0
-            if self.include_pm014:
+            if self.include_pm014 and self.system_controller.brand == "Trane":
                 total_xm30_32 = counts_map["XM30"] + counts_map["XM32"]
                 total_xm90_70 = counts_map["XM90"] + counts_map["XM70"]
                 qty_pm014 = max(0, math.ceil((total_xm30_32 - (2 * total_xm90_70) - 2) / 11))
@@ -141,7 +162,7 @@ class System:
                     qty_pm014 += 1
 
             controller_name = self.system_controller.name
-            ordered = OrderedDict({"S500": 0, "UC600": 0, "S800": 0})
+            ordered = OrderedDict({name: 0 for name in ALL_SYSTEM_CONTROLLER_NAMES})
             ordered[controller_name] = 1
             for name in ALL_EXPANSION_NAMES:
                 ordered[name] = counts_map[name]
@@ -203,7 +224,7 @@ class System:
         df = df[EXPECTED_COLUMNS].copy()
 
         # Non-dominated filtering (Pareto) by price & module counts
-        expansion_cols = ["XM90", "XM70", "XM30", "XM32", "PM014"]
+        expansion_cols = ALL_EXPANSION_NAMES + ["PM014"]
         keep_rows = []
         for i, row_i in df.iterrows():
             is_redundant = False
@@ -240,6 +261,13 @@ xm30,X13651537010,314.73
 xm32,X13651563010,314.73
 s800,X13651678002,1391.54
 pm014,X13651538-01,198.31
+jace9000,JACE9000,801.54
+jace9005,JACE9005,1309.75
+jace9010,JACE9010,1509.75
+jace9025,JACE9025,1808.52
+jace9100,JACE9100,3496.28
+jace9200,JACE9200,4755.34
+io-r-16,JENE-PC8000-R-16,276.83
 """
 # These will let the GUI know what happened
 PRICES_FALLBACK_USED = False
