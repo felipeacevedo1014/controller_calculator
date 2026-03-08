@@ -55,13 +55,13 @@ class App(ctk.CTk):
         self.geometry(f"1300x650")
         self.resizable(True, True)
 
-         try:
-             check_for_updates()
-         except Exception as e:
-             # Don't crash the app if updater fails
-             import traceback
-             print("Updater error:", e)
-             traceback.print_exc()
+        try:
+            check_for_updates()
+        except Exception as e:
+            # Don't crash the app if updater fails
+            import traceback
+            print("Updater error:", e)
+            traceback.print_exc()
 
         # --- controllers & pricing setup ---
         self.controllers = self.initialize_controllers()
@@ -91,7 +91,13 @@ class App(ctk.CTk):
         base_zoom = {
             "S500": self.ui_scale * 0.3,
             "UC600": self.ui_scale * 0.3,
-            "S800": self.ui_scale * 0.55
+            "S800": self.ui_scale * 0.55,
+            "JACE9000": self.ui_scale * 0.2,
+            "JACE9005": self.ui_scale * 0.2,
+            "JACE9010": self.ui_scale * 0.2,
+            "JACE9025": self.ui_scale * 0.2,
+            "JACE9100": self.ui_scale * 0.2,
+            "JACE9200": self.ui_scale * 0.2
         }
         self.zoom_factors = {
             key: round(zoom * self.ui_scale, 3)
