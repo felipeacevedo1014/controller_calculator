@@ -52,7 +52,7 @@ class App(ctk.CTk):
         print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
         
         self.title("Trane Controller & Expansion Calculator")
-        self.geometry(f"1300x650")
+        self.geometry(f"1300x680")
         self.resizable(True, True)
 
         try:
@@ -92,12 +92,12 @@ class App(ctk.CTk):
             "S500": self.ui_scale * 0.3,
             "UC600": self.ui_scale * 0.3,
             "S800": self.ui_scale * 0.55,
-            "JACE9000": self.ui_scale * 0.2,
-            "JACE9005": self.ui_scale * 0.2,
-            "JACE9010": self.ui_scale * 0.2,
-            "JACE9025": self.ui_scale * 0.2,
-            "JACE9100": self.ui_scale * 0.2,
-            "JACE9200": self.ui_scale * 0.2
+            "JACE9000": self.ui_scale * 0.35,
+            "JACE9005": self.ui_scale * 0.35,
+            "JACE9010": self.ui_scale * 0.35,
+            "JACE9025": self.ui_scale * 0.35,
+            "JACE9100": self.ui_scale * 0.35,
+            "JACE9200": self.ui_scale * 0.35
         }
         self.zoom_factors = {
             key: round(zoom * self.ui_scale, 3)
