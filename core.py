@@ -4,12 +4,13 @@ import math
 import requests
 from io import StringIO
 from collections import OrderedDict
+from typing import Optional
 
 ALL_SYSTEM_CONTROLLER_NAMES = [
-    "S500", "UC600", "S800",
+    "S500", "S800",
     "JACE9000", "JACE9005", "JACE9010", "JACE9025", "JACE9100", "JACE9200"
 ]
-TRANE_EXPANSION_NAMES = ["XM90", "XM70", "XM30", "XM32"]
+TRANE_EXPANSION_NAMES = ["XM90", "XM30", "XM32"]
 TRIDIUM_EXPANSION_NAMES = ["IO-R-16", "IO-R-34"]
 ALL_EXPANSION_NAMES = TRANE_EXPANSION_NAMES + TRIDIUM_EXPANSION_NAMES
 EXPECTED_COLUMNS = [
@@ -22,37 +23,38 @@ EXPECTED_COLUMNS = [
 
 
 def compute_left_points(system_points: dict, total_points: dict) -> dict:
+    """Return the remaining point capacity after satisfying the requested system points."""
     sp = {k: int(system_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","AO","PRESSURE"]}
     tp = {k: int(total_points.get(k, 0) or 0) for k in ["BO","BI","UI","AI","UIAO","BIAO","PRESSURE"]}
 
-    # Hard types
+    # BO and pressure have dedicated point types.
     bo_left = max(0, tp["BO"] - sp["BO"])
     pressure_left = max(0, tp["PRESSURE"] - sp["PRESSURE"])
 
-    # Rem pools
+    # These pools can be consumed by multiple point types.
     rem_UI   = tp["UI"]
     rem_AI   = tp["AI"]
     rem_UIAO = tp["UIAO"]
     rem_BI   = tp["BI"]
     rem_BIAO = tp["BIAO"]
 
-    # ---- UI ----
+    # Consume dedicated UI first, then shared UI/AO capacity.
     need = sp["UI"]
     use = min(rem_UI, need); rem_UI -= use; need -= use
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
 
-    # ---- AI ----
+    # AI can fall back to unused UI and UI/AO capacity.
     need = sp["AI"]
     use = min(rem_AI, need); rem_AI -= use; need -= use
     use = min(rem_UI, need); rem_UI -= use; need -= use
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
 
-    # ---- AO ----
+    # AO uses shared output-capable pools.
     need = sp["AO"]
     use = min(rem_UIAO, need); rem_UIAO -= use; need -= use
     use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
 
-    # ---- BI ----
+    # BI can use BI, BI/AO, UI, and UI/AO capacity in that order.
     need = sp["BI"]
     use = min(rem_BI, need); rem_BI -= use; need -= use
     use = min(rem_BIAO, need); rem_BIAO -= use; need -= use
@@ -71,7 +73,24 @@ def compute_left_points(system_points: dict, total_points: dict) -> dict:
 
 
 class Controller:
-    def __init__(self, name, price=0, power_AC=0, power_DC=0, width=0, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0, brand="Trane", max_io_modules=None):
+    def __init__(
+        self,
+        name: str,
+        price: float = 0.0,
+        power_AC: float = 0.0,
+        power_DC: float = 0.0,
+        width: float = 0.0,
+        UI: int = 0,
+        UIAO: int = 0,
+        BO: int = 0,
+        AI: int = 0,
+        BI: int = 0,
+        BIAO: int = 0,
+        PRESSURE: int = 0,
+        max_point_capacity: int = 0,
+        brand: str = "Trane",
+        max_io_modules: Optional[int] = None,
+    ):
         self.name = name
         self.price = price
         self.power_AC = power_AC
@@ -86,7 +105,8 @@ class Controller:
         self.PRESSURE = PRESSURE
         self.max_point_capacity = max_point_capacity
         self.brand = brand
-        self.max_io_modules = max_io_modules  # None = unlimited, 0 = no IO modules allowed
+        # None means unlimited; 0 means no IO modules are allowed.
+        self.max_io_modules = max_io_modules
 
     def get_points(self, quantity):
         return {
@@ -100,12 +120,24 @@ class Controller:
         }
 
 class System:
-    def __init__(self, system_points, system_controller, expansions_list, pm014, include_pm014):
+    def __init__(self, system_points, system_controller, expansions_list, pm014, include_pm014, brand_multipliers=None):
         self.system_points = system_points
         self.system_controller = system_controller
         self.expansions = expansions_list  # list of Controller objects
         self.include_pm014 = include_pm014
         self.pm014 = pm014
+        self.brand_multipliers = {
+            "Trane": 1.0,
+            "Tridium": 1.0,
+        }
+        if isinstance(brand_multipliers, dict):
+            self.brand_multipliers.update(brand_multipliers)
+
+    def _multiplier_for_brand(self, brand):
+        try:
+            return float(self.brand_multipliers.get(brand, 1.0))
+        except Exception:
+            return 1.0
 
     def _required_total_points(self):
         return int(sum(v for v in self.system_points.values() if isinstance(v, (int, float))))
@@ -113,7 +145,6 @@ class System:
     def _max_by_expansion(self, required_total_points: int):
         capacity_map = {
             "XM90": 32,
-            "XM70": 18,
             "XM30": 4,
             "XM32": 4,
             "IO-R-16": 16,
@@ -130,12 +161,12 @@ class System:
         required_total_points = self._required_total_points()
         exp_max_map = self._max_by_expansion(required_total_points)
 
-        # Enabled expansion names
+        # Only build ranges for expansions that are enabled in the UI.
         enabled_names = [e.name for e in self.expansions]
         ranges = [range(exp_max_map.get(name, 0) + 1) for name in enabled_names]
 
         for counts in product(*ranges) if ranges else [()]:
-            # Build counts map for all expansions; default 0 for disabled
+            # Start with zero counts for every expansion, then fill the enabled ones.
             counts_map = {name: 0 for name in ALL_EXPANSION_NAMES}
             for name, qty in zip(enabled_names, counts):
                 counts_map[name] = qty
@@ -150,14 +181,17 @@ class System:
             if not self.valid_combination(combination_points):
                 continue
 
-            price = sum(exp.price * counts_map[exp.name] for exp in self.expansions)
+            price = sum(
+                (exp.price * self._multiplier_for_brand(exp.brand)) * counts_map[exp.name]
+                for exp in self.expansions
+            )
             width = sum(exp.width * counts_map[exp.name] for exp in self.expansions)
 
             qty_pm014 = 0
             if self.include_pm014 and self.system_controller.brand == "Trane":
                 total_xm30_32 = counts_map["XM30"] + counts_map["XM32"]
-                total_xm90_70 = counts_map["XM90"] + counts_map["XM70"]
-                qty_pm014 = max(0, math.ceil((total_xm30_32 - (2 * total_xm90_70) - 2) / 11))
+                total_xm90 = counts_map["XM90"]
+                qty_pm014 = max(0, math.ceil((total_xm30_32 - (2 * total_xm90) - 2) / 11))
                 if self.system_controller.name == "S800":
                     qty_pm014 += 1
 
@@ -176,7 +210,9 @@ class System:
             total_va += self.pm014.power_AC * qty_pm014
             ordered["Total VA"] = total_va
 
-            ordered["Price"] = round(price + self.system_controller.price + (self.pm014.price * qty_pm014), 2)
+            controller_price = self.system_controller.price * self._multiplier_for_brand(self.system_controller.brand)
+            pm014_price = self.pm014.price * self._multiplier_for_brand(self.pm014.brand)
+            ordered["Price"] = round(price + controller_price + (pm014_price * qty_pm014), 2)
             ordered["Width"] = round(width + self.system_controller.width + (self.pm014.width * qty_pm014), 2)
             total_combinations.append(ordered)
 
@@ -211,19 +247,19 @@ class System:
         return all(checks)
 
     def filter_combinations(self, combinations):
-        # Always return a DataFrame with expected columns (even if empty)
+        # Preserve the expected schema even when no valid combinations are found.
         if not combinations:
             return pd.DataFrame(columns=EXPECTED_COLUMNS)
 
         df = pd.DataFrame(combinations).sort_values(by="Price").reset_index(drop=True).head(500)
 
-        # Add any missing columns with zeros, then reorder
+        # Fill any missing columns so downstream UI code can rely on a stable shape.
         for col in EXPECTED_COLUMNS:
             if col not in df.columns:
                 df[col] = 0.0 if col in ("Price", "Width") else 0
         df = df[EXPECTED_COLUMNS].copy()
 
-        # Non-dominated filtering (Pareto) by price & module counts
+        # Drop combinations that cost more without reducing module counts.
         expansion_cols = ALL_EXPANSION_NAMES + ["PM014"]
         keep_rows = []
         for i, row_i in df.iterrows():
@@ -253,40 +289,35 @@ class Enclosure:
         self.rail_size = rail_size
         self.tx_qty = tx_qty
 
-DEFAULT_PRICES_TEXT = """uc600,BMUC600AAA0100011,1085.22
-s500,BMSY500AAA0100011,473.68
-xm90,X13651701001,1210.74
-xm70,x13651568010,787.21
-xm30,X13651537010,314.73
-xm32,X13651563010,314.73
-s800,X13651678002,1391.54
-pm014,X13651538-01,198.31
-jace9000,JACE9000,801.54
-jace9005,JACE9005,1309.75
-jace9010,JACE9010,1509.75
-jace9025,JACE9025,1808.52
-jace9100,JACE9100,3496.28
-jace9200,JACE9200,4755.34
-io-r-16,JENE-PC8000-R-16,276.83
+DEFAULT_PRICES_TEXT = """s500,BMSY500AAA0100011,1367.00
+xm90,X13651701001,3379.00
+xm30,X13651537010,908.00
+xm32,X13651563010,908.00
+s800,X13651678002,4015.00
+pm014,X13651538-01,621.00
+jace9000,JACE9000,4918.55
+jace9005,JACE9005,8037.09
+jace9010,JACE9010,9264.36
+jace9025,JACE9025,11097.73
+jace9100,JACE9100,21454.45
+jace9200,JACE9200,29180.50
+io-r-16,JENE-PC8000-R-16,1258.32
+io-r-34,JENE-PC8000-R-34,2800.00
 """
-# These will let the GUI know what happened
+# Expose fetch status so the GUI can report whether live or embedded prices were used.
 PRICES_FALLBACK_USED = False
 PRICES_USED_DF = None
 PRICES_FETCH_ERROR = ""
 
 def fetch_prices(prices_url):
-    """
-    Returns a DataFrame with columns:
-    0 = name, 1 = part number, 2 = price
-    If live fetch fails, returns DEFAULT_PRICES instead.
-    """
+    """Fetch live price data and fall back to the embedded default catalog if needed."""
     global PRICES_FALLBACK_USED, PRICES_USED_DF, PRICES_FETCH_ERROR
 
     try:
         response = requests.get(url=prices_url, timeout=10)
         response.raise_for_status()
         df = pd.read_csv(StringIO(response.text), encoding="utf-8", sep=",", header=None)
-        # Defensive cleanup
+        # Normalize the fetched CSV so callers always get a predictable schema.
         df[0] = df[0].astype(str).str.strip().str.lower()
         df[1] = df[1].astype(str).str.strip()
         df[2] = df[2].astype(str).str.strip().astype(float)
@@ -297,7 +328,7 @@ def fetch_prices(prices_url):
         return df
 
     except Exception as e:
-        # Fallback to embedded defaults
+        # Fall back to the embedded catalog when the remote price file is unavailable.
         df = pd.read_csv(StringIO(DEFAULT_PRICES_TEXT), encoding="utf-8", sep=",", header=None)
         df[0] = df[0].astype(str).str.strip().str.lower()
         df[1] = df[1].astype(str).str.strip()
@@ -308,17 +339,53 @@ def fetch_prices(prices_url):
         PRICES_USED_DF = df
         return df
 
-def run_calculations(system_points, system_controller, expansions_list, pm014, include_pm014):
-    return System(system_points, system_controller, expansions_list, pm014, include_pm014).find_combinations()
+def run_calculations(
+    system_points,
+    system_controller,
+    expansions_list,
+    pm014,
+    include_pm014,
+    trane_multiplier=1.0,
+    tridium_multiplier=1.0,
+):
+    brand_multipliers = {
+        "Trane": float(trane_multiplier),
+        "Tridium": float(tridium_multiplier),
+    }
+    return System(
+        system_points,
+        system_controller,
+        expansions_list,
+        pm014,
+        include_pm014,
+        brand_multipliers=brand_multipliers,
+    ).find_combinations()
 
-def run_building_calculations(building_df, system_controller, expansions_list, pm014, include_pm014, spare_points):
+def run_building_calculations(
+    building_df,
+    system_controller,
+    expansions_list,
+    pm014,
+    include_pm014,
+    spare_points,
+    trane_multiplier=1.0,
+    tridium_multiplier=1.0,
+):
     building_df.columns = ["System Name", "BO", "BI", "UI", "AO", "AI", "PRESSURE"]
     for col in ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]:
         building_df[col] = building_df[col].apply(lambda x: math.ceil(x * (1 + spare_points / 100)))
     results_list = []
     for row in building_df.itertuples(index=False):
         system_points = {"BO": row[1], "BI": row[2], "UI": row[3], "AO": row[4], "AI": row[5], "PRESSURE": row[6]}
-        results = run_calculations(system_points, system_controller, expansions_list, pm014, include_pm014)
+        results = run_calculations(
+            system_points,
+            system_controller,
+            expansions_list,
+            pm014,
+            include_pm014,
+            trane_multiplier=trane_multiplier,
+            tridium_multiplier=tridium_multiplier,
+        )
         results.reset_index(inplace=True, drop=True)
         row_result = results.iloc[0].tolist()
         row_result.insert(0, row[0])
