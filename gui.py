@@ -16,12 +16,12 @@ from core import Controller, fetch_prices, run_calculations, run_building_calcul
 from updater import check_for_updates 
 from version import __version__, __app_name__
 
-# --- Enable per-monitor DPI awareness on Windows (must be set before creating the Tk root) ---
+# Enable per-monitor DPI awareness before creating the Tk root.
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor v2 (Win 8.1+)
 except Exception:
     try:
-        ctypes.windll.user32.SetProcessDPIAware()    # Older fallback
+        ctypes.windll.user32.SetProcessDPIAware()  # Fallback for older Windows versions
     except Exception:
         pass
 
@@ -33,20 +33,21 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # === UI scaling ===
+        # Scale the UI up slightly on taller displays.
         screen_height = self.winfo_screenheight()
         screen_width = self.winfo_screenwidth()
         print(f"Screen size: {screen_width}x{screen_height}")
         #self.ui_scale = (0.19*screen_height/1000 + 0.59)
         self.ui_scale = 1.4 if screen_height > 1080 else 1
-                
+
         print(f"UI Scale: {self.ui_scale}")
         # Apply to customtkinter & Tk
         #ctk.set_widget_scaling(self.ui_scale)
         #ctk.set_window_scaling(self.ui_scale)
         self.tk.call('tk', 'scaling', self.ui_scale)
         self.title(f"{__app_name__} v{__version__}")
-        # --- fonts ---
+
+        # Shared fonts for labels, buttons, and tables.
         self.font_main = ("Calibri", 14)
         self.font_tree = ("Calibri", int(round(12*self.ui_scale)))
         print(f"Main font: {self.font_main}, Tree font: {self.font_tree}")
@@ -58,23 +59,24 @@ class App(ctk.CTk):
         try:
             check_for_updates()
         except Exception as e:
-            # Don't crash the app if updater fails
+            # Update checks are optional and should never block the app.
             import traceback
             print("Updater error:", e)
             traceback.print_exc()
 
-        # --- controllers & pricing setup ---
+        # Controller catalog and pricing state.
         self.controllers = self.initialize_controllers()
+        self.trane_multiplier_var = tk.StringVar(value="1.00")
+        self.tridium_multiplier_var = tk.StringVar(value="1.00")
         self.system_controller_names = [
-            "S500", "UC600", "S800",
+            "S500", "S800",
             "JACE9000", "JACE9005", "JACE9010", "JACE9025", "JACE9100", "JACE9200"
         ]
-        self.trane_expansion_names = ["XM90", "XM70", "XM30", "XM32"]
+        self.trane_expansion_names = ["XM90", "XM30", "XM32"]
         self.tridium_expansion_names = ["IO-R-16", "IO-R-34"]
         self.all_expansion_names = self.trane_expansion_names + self.tridium_expansion_names
         self.expansions = [
             self.controllers["XM90"],
-            self.controllers["XM70"],
             self.controllers["XM30"],
             self.controllers["XM32"],
             self.controllers["IO-R-16"],
@@ -90,7 +92,6 @@ class App(ctk.CTk):
         screen_height = self.winfo_screenheight()
         base_zoom = {
             "S500": self.ui_scale * 0.3,
-            "UC600": self.ui_scale * 0.3,
             "S800": self.ui_scale * 0.55,
             "JACE9000": self.ui_scale * 0.35,
             "JACE9005": self.ui_scale * 0.35,
@@ -113,19 +114,16 @@ class App(ctk.CTk):
         self.zoom_step = 0.2
         self.original_images = {}
         
-        # Load images with error handling for missing files
+        # Reuse the JACE9000 image for the JACE variants that do not have dedicated assets.
         image_files = {
             "S500": "assets/S500_2.png",
-            "UC600": "assets/UC600_2.png",
             "S800": "assets/S800.png",
             "JACE9000": "assets/Jace9000.png",
-            "JACE9005": "assets/Jace9000.png",  # Use Jace9000 as fallback
-            "JACE9010": "assets/Jace9000.png",  # Use Jace9000 as fallback
-            "JACE9025": "assets/Jace9000.png",  # Use Jace9000 as fallback
-            "JACE9100": "assets/Jace9000.png",  # Use Jace9000 as fallback
-            "JACE9200": "assets/Jace9000.png",  # Use Jace9000 as fallback
-#            "IO-R-16": "assets/IO-R-16.png",
-#            "IO-R-34": "assets/IO-R-34.png"
+            "JACE9005": "assets/Jace9000.png",
+            "JACE9010": "assets/Jace9000.png",
+            "JACE9025": "assets/Jace9000.png",
+            "JACE9100": "assets/Jace9000.png",
+            "JACE9200": "assets/Jace9000.png",
         }
         
         for key, image_path in image_files.items():
@@ -137,7 +135,7 @@ class App(ctk.CTk):
 
         #--image panning setup 🔧---
         self.pan_start_x = None
-        self.pan_start_y = None  
+        self.pan_start_y = None
 
         # --- load controller images (initial) 🔧 ---
         self.current_controller = "S500"
@@ -147,8 +145,8 @@ class App(ctk.CTk):
         # --- bind zoom 🔧 ---
         self.bind("<Control-MouseWheel>", self._on_mousewheel_zoom)
 
-        # --- tabview setup ---
-        self._multi_new_row_counter = 1  # auto-name counter for new rows
+        # Tab layout and auto-generated names for new batch rows.
+        self._multi_new_row_counter = 1
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(expand=True, fill="both", padx=10, pady=10)
         self.tab_system = self.tabview.add("Single System")
@@ -156,7 +154,7 @@ class App(ctk.CTk):
         self.tab_resources = self.tabview.add("Resources")
         self.tabview.set("Single System")
 
-        # --- build tabs ---
+        # Build the application tabs.
         self.build_single_system_tab()
         self.build_multiple_system_tab()
         self.build_resources_tab()
@@ -172,32 +170,28 @@ class App(ctk.CTk):
 
 
     def initialize_controllers(self):
-        uc600 = Controller("UC600", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, max_point_capacity=120, price=1085.22, brand="Trane", max_io_modules=None)
-        s500 = Controller("S500", power_AC=24, width=5.65, AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133, price=473.68, brand="Trane", max_io_modules=None)
-        s800 = Controller("S800", power_DC=24, width=5.65, max_point_capacity=500, price=1391.54, brand="Trane", max_io_modules=None)
+        s500 = Controller("S500", power_AC=24, width=5.65, AI=5, UI=2, BI=3, BO=9, BIAO=2, PRESSURE=2, max_point_capacity=133, price=1367.00, brand="Trane", max_io_modules=None)
+        s800 = Controller("S800", power_DC=24, width=5.65, max_point_capacity=500, price=4015.00, brand="Trane", max_io_modules=None)
 
-        xm90 = Controller("XM90", power_AC=50, width=8.5, UI=16, UIAO=8, BO=8, price=1210.74, brand="Trane", max_io_modules=None)
-        xm70 = Controller("XM70", power_AC=26, width=8.5, UI=8, UIAO=6, BO=4, PRESSURE=1, price=787.21, brand="Trane", max_io_modules=None)
-        xm30 = Controller("XM30", power_DC=120, width=2.11, UIAO=4, price=314.73, brand="Trane", max_io_modules=None)
-        xm32 = Controller("XM32", power_DC=100, width=2.82, BO=4, price=314.73, brand="Trane", max_io_modules=None)
-        pm014 = Controller("PM014", power_AC=75, width=5, price=198.31, brand="Trane", max_io_modules=None)
+        xm90 = Controller("XM90", power_AC=50, width=8.5, UI=16, UIAO=8, BO=8, price=3379.00, brand="Trane", max_io_modules=None)
+        xm30 = Controller("XM30", power_DC=120, width=2.11, UIAO=4, price=908.00, brand="Trane", max_io_modules=None)
+        xm32 = Controller("XM32", power_DC=100, width=2.82, BO=4, price=908.00, brand="Trane", max_io_modules=None)
+        pm014 = Controller("PM014", power_AC=75, width=5, price=621.00, brand="Trane", max_io_modules=None)
 
-        jace9000 = Controller("JACE9000", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0, price=801.54, brand="Tridium", max_io_modules=0)
-        jace9005 = Controller("JACE9005", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=250, price=1309.75, brand="Tridium", max_io_modules=5)
-        jace9010 = Controller("JACE9010", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=500, price=1509.75, brand="Tridium", max_io_modules=16)
-        jace9025 = Controller("JACE9025", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=1250, price=1808.52, brand="Tridium", max_io_modules=16)
-        jace9100 = Controller("JACE9100", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=5000, price=3496.28, brand="Tridium", max_io_modules=16)
-        jace9200 = Controller("JACE9200", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=10000, price=4755.34, brand="Tridium", max_io_modules=16)
+        jace9000 = Controller("JACE9000", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=0, price=4918.55, brand="Tridium", max_io_modules=0)
+        jace9005 = Controller("JACE9005", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=250, price=8037.09, brand="Tridium", max_io_modules=5)
+        jace9010 = Controller("JACE9010", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=500, price=9264.36, brand="Tridium", max_io_modules=16)
+        jace9025 = Controller("JACE9025", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=1250, price=11097.73, brand="Tridium", max_io_modules=16)
+        jace9100 = Controller("JACE9100", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=5000, price=21454.45, brand="Tridium", max_io_modules=16)
+        jace9200 = Controller("JACE9200", power_AC=24, power_DC=24, width=6.74, UI=0, UIAO=0, BO=0, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=10000, price=29180.50, brand="Tridium", max_io_modules=16)
 
-        io_r_16 = Controller("IO-R-16", power_AC=2, power_DC=2, width=3.25, UI=8, UIAO=4, BO=4, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=16, price=276.83, brand="Tridium", max_io_modules=None)
-        io_r_34 = Controller("IO-R-34", power_AC=38, power_DC=38, width=6.8, UI=16, UIAO=8, BO=10, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=16, price=616.00, brand="Tridium", max_io_modules=None)
+        io_r_16 = Controller("IO-R-16", power_AC=2, power_DC=2, width=3.25, UI=8, UIAO=4, BO=4, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=16, price=1258.32, brand="Tridium", max_io_modules=None)
+        io_r_34 = Controller("IO-R-34", power_AC=38, power_DC=38, width=6.8, UI=16, UIAO=8, BO=10, AI=0, BI=0, BIAO=0, PRESSURE=0, max_point_capacity=16, price=2800.00, brand="Tridium", max_io_modules=None)
 
         controllers = {
-            "UC600": uc600,
             "S500": s500,
             "S800": s800,
             "XM90": xm90,
-            "XM70": xm70,
             "XM30": xm30,
             "XM32": xm32,
             "PM014": pm014,
@@ -221,7 +215,7 @@ class App(ctk.CTk):
         return controllers
     
     if core.PRICES_FALLBACK_USED:
-        # Build readable lines like "uc600: $1085.22"
+        # Build readable lines like "s500: $1367.00"
         lines = []
         for _, row in core.PRICES_USED_DF.iterrows():
             name = str(row[0]).strip()
@@ -230,7 +224,8 @@ class App(ctk.CTk):
 
         messagebox.showwarning(
             "Live prices unavailable",
-            "Live price fetch failed, so DEFAULT prices are being used.\n\n"
+            "Live price fetch failed, so fallback LIST prices are being used.\n"
+            "Brand multipliers will still be applied to results.\n\n"
             + "\n".join(lines)
             + f"\n\nError details:\n{core.PRICES_FETCH_ERROR}"
         )
@@ -246,12 +241,12 @@ class App(ctk.CTk):
         frame.grid_rowconfigure(7, weight=1)
         frame.grid_columnconfigure(2, weight=1)
 
-        # --- central image label ---
+        # Controller preview canvas.
         self.canvas_frame = ctk.CTkFrame(frame)
         self.canvas_frame.grid(row=1, column=2, rowspan=6, sticky="nsew")
         self.canvas = tk.Canvas(self.canvas_frame, bg="#2b2b2b", highlightthickness=0)
         self.canvas.pack(expand=True, fill="both")
-        # Recenter image when canvas resizes (only if center_locked)
+        # Recenter the preview while it is still in auto-center mode.
         self.canvas.bind("<Configure>", self._on_canvas_resize)
         self.zoom_hint_label = ctk.CTkLabel(
             frame,
@@ -270,12 +265,12 @@ class App(ctk.CTk):
         #    self.original_images[self.current_controller], center_if_needed=True))
         self.after(50,self._wait_for_canvas_ready)
 
-        #--zoom reset--
+        # Double-click restores the default zoom and centering.
         self.canvas.bind("<Double-Button-1>", self._reset_zoom)
 
-        # --- input fields (cols 0–1) ---
+        # Point input fields for the single-system tab.
         self.inputs = {}
-        self.input_labels = {}  # Store label widgets for show/hide
+        self.input_labels = {}
         row = 0
         for label in ["BO", "BI", "UI", "AO", "AI", "PRESSURE"]:
             label_widget = ctk.CTkLabel(frame, text=label, font=self.font_main)
@@ -288,7 +283,7 @@ class App(ctk.CTk):
             self.inputs[label] = entry
             row += 1
 
-        # --- Brand selector ---
+        # Brand selection drives controller, expansion, and input visibility.
         ctk.CTkLabel(frame, text="Brand:", font=self.font_main).grid(row=0, column=0, sticky="w", padx=5)
         self.brand_var = ctk.StringVar(value="Trane")
         self.brand_selector = ctk.CTkSegmentedButton(
@@ -300,28 +295,47 @@ class App(ctk.CTk):
         )
         self.brand_selector.grid(row=0, column=1, padx=5, sticky="w", columnspan=1)
 
-        # --- controller selector & spare ---
+        # Single-system controller selection, multipliers, and spare-point settings.
         self.controller_choice = ctk.CTkOptionMenu(
             frame, font=self.font_main,
-            values=["S500", "UC600", "S800"],
+            values=["S500", "S800"],
             command=self._on_controller_select
         )
         self.controller_choice.set("S500")
-        self.controller_choice.grid(row=0, column=3, padx=10, columnspan=2, sticky="e")
+        self.controller_choice.grid(row=0, column=3, padx=10, columnspan=1, sticky="w")
+
+        multipliers_frame = ctk.CTkFrame(frame)
+        multipliers_frame.grid(row=0, column=4, rowspan=2, padx=(6, 4), pady=(0, 2), sticky="ne")
+        ctk.CTkLabel(multipliers_frame, text="Trane Mult", font=self.font_main).grid(row=0, column=0, sticky="e", padx=(6, 4), pady=(4, 2))
+        ctk.CTkEntry(
+            multipliers_frame,
+            width=78,
+            justify="center",
+            textvariable=self.trane_multiplier_var,
+            font=self.font_main,
+        ).grid(row=0, column=1, padx=(0, 6), pady=(4, 2))
+        ctk.CTkLabel(multipliers_frame, text="Tridium Mult", font=self.font_main).grid(row=1, column=0, sticky="e", padx=(6, 4), pady=(2, 4))
+        ctk.CTkEntry(
+            multipliers_frame,
+            width=78,
+            justify="center",
+            textvariable=self.tridium_multiplier_var,
+            font=self.font_main,
+        ).grid(row=1, column=1, padx=(0, 6), pady=(2, 4))
 
         ctk.CTkLabel(frame, text="Spare Points[%]", font=self.font_main).grid(row=1, column=3, sticky="w", padx=2)
         self.spare_spin = ctk.CTkEntry(frame, width=50, font=self.font_main)
         self.spare_spin.insert(0, "0")
-        self.spare_spin.grid(row=1, column=3, columnspan=2, pady=2, padx=(0,5), sticky="e")
+        self.spare_spin.grid(row=1, column=3, columnspan=1, pady=2, padx=(0, 10), sticky="e")
 
         self.expansion_vars = {}
         for idx, exp in enumerate(self.all_expansion_names):
             cb = ctk.CTkCheckBox(frame, text=f"Include {exp}", font=self.font_main)
-            cb.deselect() if exp in ["XM70", "IO-R-16"] else cb.select()
+            cb.deselect() if exp in ["IO-R-16"] else cb.select()
             cb.grid(row=2+idx, column=3, columnspan=2, sticky="w", padx=5)
             self.expansion_vars[exp] = cb
 
-        # --- PM014 checkbox ---
+        # PM014 is only relevant for Trane configurations.
         self.pm014_var = ctk.CTkCheckBox(frame, text="Include PM014", font=self.font_main)
         self.pm014_var.select()
         self.pm014_var.grid(row=7, column=3, columnspan=2, sticky="w", padx=5)
@@ -334,14 +348,13 @@ class App(ctk.CTk):
         style = ttk.Style()
         is_dark = ctk.get_appearance_mode() == "Dark"
         print(f"Using dark mode: {is_dark}")
-        #bg_color = self["bg"] if is_dark else "#e0e0e0"
-        bg_color ="gray14"
+        bg_color = "gray14"
         print(f"Using background color: {bg_color}")
         style.configure("Custom.Treeview", background=bg_color, fieldbackground=bg_color, foreground="white")
         style.configure("Custom.Treeview.Heading", font=(self.font_tree[0], self.font_tree[1], "bold"))
         style.configure("Custom.Treeview", font=self.font_tree)  # Row content
 
-        # Scaled row height
+        # Scale row height so table text stays readable on larger displays.
         body_font = tkfont.Font(family="Arial", size=self.font_main[1])
         row_h = body_font.metrics("linespace") + int(6 * self.ui_scale)
         #row_h = body_font.metrics("linespace")
@@ -350,15 +363,15 @@ class App(ctk.CTk):
         self.tree_single = ttk.Treeview(
         frame,
         columns=(
-            "S500","UC600","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200",
-            "XM90","XM70","XM30","XM32","IO-R-16","IO-R-34","PM014",
+            "S500","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200",
+            "XM90","XM30","XM32","IO-R-16","IO-R-34","PM014",
             "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESS Left",
             "Total VA","Price","Width [in]"),
         show="headings",
         height=5,
         style="Custom.Treeview"
         )
-        count_cols = {"S500","UC600","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM70","XM30","XM32","IO-R-16","IO-R-34","PM014"}
+        count_cols = {"S500","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM30","XM32","IO-R-16","IO-R-34","PM014"}
         COUNT_W = 70
         OTHER_W = 105
         for col in self.tree_single["columns"]:
@@ -366,7 +379,7 @@ class App(ctk.CTk):
             w = COUNT_W if col in count_cols else OTHER_W
             self.tree_single.column(col, width=w, anchor="center")
         self.tree_single.grid(row=9, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
-        # == Horizontal scrollbar
+        # Horizontal scrollbar for wide result tables.
         hscroll = ttk.Scrollbar(frame, orient="horizontal", command=self.tree_single.xview)
         self.tree_single.configure(xscrollcommand=hscroll.set)
         hscroll.grid(row=10, column=0, columnspan=5, sticky="ew", padx=5)
@@ -389,7 +402,7 @@ class App(ctk.CTk):
         self._update_expansion_visibility()
 
     def _on_brand_change(self, selected_brand: str):
-        """Update controller dropdown and expansions based on selected brand"""
+        """Refresh the single-system controls for the selected brand."""
         brand_controllers = [
             name for name in self.system_controller_names
             if self.controllers[name].brand == selected_brand
@@ -424,12 +437,12 @@ class App(ctk.CTk):
             else:
                 label_widget.grid_remove()
                 entry_widget.grid_remove()
-                # Clear the value for hidden fields
+                # Hidden fields are reset so they cannot affect calculations.
                 entry_widget.delete(0, "end")
                 entry_widget.insert(0, "0")
 
     def _on_multi_brand_change(self, selected_brand: str):
-        """Update controller dropdown and expansions for multiple systems tab"""
+        """Refresh the batch-calculation controls for the selected brand."""
         brand_controllers = [
             name for name in self.system_controller_names
             if self.controllers[name].brand == selected_brand
@@ -443,8 +456,20 @@ class App(ctk.CTk):
         # Update expansion visibility
         self._update_multi_expansion_visibility()
 
+    def _get_brand_multipliers(self):
+        try:
+            trane_multiplier = float(self.trane_multiplier_var.get())
+            tridium_multiplier = float(self.tridium_multiplier_var.get())
+        except ValueError as exc:
+            raise ValueError("Both brand multipliers must be numeric values.") from exc
+
+        if trane_multiplier <= 0 or tridium_multiplier <= 0:
+            raise ValueError("Both brand multipliers must be greater than 0.")
+
+        return trane_multiplier, tridium_multiplier
+
     def _update_expansion_visibility(self):
-        """Show/hide expansions based on selected controller's brand"""
+        """Show only the expansion options that match the selected controller brand."""
         current_ctrl_name = self.controller_choice.get()
         ctrl_brand = self.controllers[current_ctrl_name].brand
 
@@ -461,7 +486,7 @@ class App(ctk.CTk):
             self.pm014_var.grid_remove()
 
     def _update_multi_expansion_visibility(self):
-        """Show/hide expansions for multiple systems tab based on selected controller's brand"""
+        """Show only the batch expansion options that match the selected controller brand."""
         current_ctrl_name = self.multi_controller_choice.get()
         ctrl_brand = self.controllers[current_ctrl_name].brand
 
@@ -480,7 +505,7 @@ class App(ctk.CTk):
     def _update_results_table_columns(self, tree_widget, brand):
         """Update treeview columns to show only relevant columns for the selected brand"""
         # Define brand-specific columns
-        trane_cols = {"S500", "UC600", "S800", "XM90", "XM70", "XM30", "XM32", "PM014"}
+        trane_cols = {"S500", "S800", "XM90", "XM30", "XM32", "PM014"}
         tridium_cols = {"JACE9000", "JACE9005", "JACE9010", "JACE9025", "JACE9100", "JACE9200", "IO-R-16", "IO-R-34"}
         
         # Common columns that always appear
@@ -505,11 +530,13 @@ class App(ctk.CTk):
     def _update_image_display(self, pil_image, center_if_needed=True):
         w, h = pil_image.size
         new_size = (int(w * self.zoom_factor), int(h * self.zoom_factor))
-        resized = pil_image.resize(new_size, Image.LANCZOS)
+        resampling = getattr(Image, "Resampling", None)
+        resample_filter = resampling.LANCZOS if resampling is not None else getattr(Image, "BICUBIC", 3)
+        resized = pil_image.resize(new_size, resample_filter)
         self.tk_image = ImageTk.PhotoImage(resized)
         self.current_drawn_size = new_size  # track for recenter on resize
 
-        # If we want to center on first load/reset
+        # Center the image on first load and after a manual reset.
         if center_if_needed:
             canvas_width = self.canvas.winfo_width()
             canvas_height = self.canvas.winfo_height()
@@ -526,7 +553,7 @@ class App(ctk.CTk):
         )
 
     def _on_canvas_resize(self, event=None):
-        # Keep centered only if user hasn't panned/zoomed intentionally
+        # Only recenter while the preview is still in auto-center mode.
         if not getattr(self, "center_locked", False):
             return
         if not getattr(self, "canvas_image_id", None) or not getattr(self, "current_drawn_size", None):
@@ -537,7 +564,9 @@ class App(ctk.CTk):
         self.image_x = (cw - iw) // 2
         self.image_y = (ch - ih) // 2
         try:
-            self.canvas.coords(self.canvas_image_id, self.image_x, self.image_y)
+            image_id = self.canvas_image_id
+            if image_id is not None:
+                self.canvas.coords(image_id, self.image_x, self.image_y)
         except Exception:
             pass
 
@@ -573,7 +602,8 @@ class App(ctk.CTk):
                 messagebox.showerror("Error","Spare Points must be an integer.")
                 return
             ctrl = self.controllers[self.controller_choice.get()]
-            # Check point capacity
+
+            # Apply spare percentage before validating controller capacity.
             system_points = {
                 k: math.ceil(v * (1 + spare / 100))
                 for k, v in system_points.items()
@@ -594,6 +624,8 @@ class App(ctk.CTk):
                 for exp in selected_expansion_names
                 if self.expansion_vars[exp].get()
             ]
+
+            trane_multiplier, tridium_multiplier = self._get_brand_multipliers()
             
             print("Using expansions:", [exp.name for exp in self.expansions])
 
@@ -605,7 +637,9 @@ class App(ctk.CTk):
                     ctrl,
                     self.expansions,
                     self.controllers["PM014"],
-                    include_pm014
+                    include_pm014,
+                    trane_multiplier=trane_multiplier,
+                    tridium_multiplier=tridium_multiplier,
                 )
                 for col in results.columns:
                     if col not in ("Price", "Width"):
@@ -708,7 +742,7 @@ class App(ctk.CTk):
             btn.grid(row=0, column=col, padx=padx, pady=(0, 0), sticky="n") 
 
 
-        # === Controller dropdown, expansions, spare % ===
+        # Shared batch controls for controller selection, expansions, and pricing multipliers.
         controls_frame = ctk.CTkFrame(frame)
         controls_frame.pack(fill="x", padx=5, pady=(0, 10))
 
@@ -725,7 +759,7 @@ class App(ctk.CTk):
         self.multi_brand_selector.pack(side="left", padx=5)
 
         self.multi_controller_choice = ctk.CTkOptionMenu(
-            controls_frame, values=["S500", "UC600", "S800"], width=100, font=self.font_main
+            controls_frame, values=["S500", "S800"], width=100, font=self.font_main
         )
         self.multi_controller_choice.set("S500")
         self.multi_controller_choice.pack(side="left", padx=8)  
@@ -733,7 +767,7 @@ class App(ctk.CTk):
         self.multi_exp_vars = {}
         for exp in self.all_expansion_names:
             cb = ctk.CTkCheckBox(controls_frame, text=exp, width=80, font=self.font_main)
-            cb.deselect() if exp in ["XM70", "IO-R-16"] else cb.select()
+            cb.deselect() if exp in ["IO-R-16"] else cb.select()
             cb.pack(side="left", padx=3)
             self.multi_exp_vars[exp] = cb
         self.multi_pm014_var = ctk.CTkCheckBox(controls_frame, text="PM014", width=80, font=self.font_main)
@@ -744,6 +778,11 @@ class App(ctk.CTk):
         self.multi_spare_spin = ctk.CTkEntry(controls_frame, width=40, font=self.font_main)
         self.multi_spare_spin.insert(0, "0")
         self.multi_spare_spin.pack(side="left", padx=(0, 5))
+
+        ctk.CTkLabel(controls_frame, text="Trane Mult:", font=self.font_main).pack(side="left", padx=(10, 2))
+        ctk.CTkEntry(controls_frame, width=60, textvariable=self.trane_multiplier_var, font=self.font_main).pack(side="left", padx=(0, 5))
+        ctk.CTkLabel(controls_frame, text="Tridium Mult:", font=self.font_main).pack(side="left", padx=(4, 2))
+        ctk.CTkEntry(controls_frame, width=60, textvariable=self.tridium_multiplier_var, font=self.font_main).pack(side="left", padx=(0, 5))
 
         ctk.CTkButton(controls_frame, text="Calculate", command=self.calculate_multiple, font=self.font_main).pack(side="left",padx=5)
 
@@ -779,8 +818,8 @@ class App(ctk.CTk):
             frame,
             columns=(
                 "System",
-                "S500","UC600","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200",
-                "XM90","XM70","XM30","XM32","IO-R-16","PM014",
+                "S500","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200",
+                "XM90","XM30","XM32","IO-R-16","PM014",
                 "BO Left","BI Left","UI Left","AI Left","UI/AO Left","BI/AO Left","PRESS Left",
                 "Total VA","Price","Width[in]"
             ),
@@ -788,7 +827,7 @@ class App(ctk.CTk):
             height=6,
             style="Custom.Treeview"
         )
-        count_cols = {"System","S500","UC600","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM70","XM30","XM32","IO-R-16","PM014"}
+        count_cols = {"System","S500","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM30","XM32","IO-R-16","PM014"}
         COUNT_W = 70
         OTHER_W = 105
         for col in self.multi_result_table["columns"]:
@@ -843,7 +882,7 @@ class App(ctk.CTk):
             else:
                 df = pd.read_excel(file_path)
 
-            # Normalize column names to lowercase
+            # Normalize headers so CSV and Excel imports are treated the same way.
             df.columns = [col.strip().lower() for col in df.columns]
 
             # Define required lowercase columns
@@ -866,6 +905,12 @@ class App(ctk.CTk):
 
     
     def calculate_multiple(self):
+        try:
+            trane_multiplier, tridium_multiplier = self._get_brand_multipliers()
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+            return
+
         def thread_fn():
             try:
                 self.status_label.configure(text="Calculating...")
@@ -897,7 +942,9 @@ class App(ctk.CTk):
                 spare = int(self.multi_spare_spin.get())
 
                 # 5) Capacity check per system
-                total_points_per_system = df.iloc[:, 1:-1].applymap(lambda x: math.ceil(x * (1 + spare / 100)))
+                total_points_per_system = df.iloc[:, 1:-1].apply(
+                    lambda col: col.map(lambda x: math.ceil(x * (1 + spare / 100)))
+                )
                 total_points_sum = total_points_per_system.sum(axis=1)
                 controller_limit = ctrl.max_point_capacity
                 exceeded = df["System Name"][total_points_sum > controller_limit].tolist()
@@ -911,7 +958,14 @@ class App(ctk.CTk):
                 # 6) Run calculation
                 include_pm014 = bool(self.multi_pm014_var.get()) if ctrl.brand == "Trane" else False
                 results_df = run_building_calculations(
-                    df, ctrl, expansions, self.controllers["PM014"], include_pm014, spare
+                    df,
+                    ctrl,
+                    expansions,
+                    self.controllers["PM014"],
+                    include_pm014,
+                    spare,
+                    trane_multiplier=trane_multiplier,
+                    tridium_multiplier=tridium_multiplier,
                 )
 
                 # 7) Display results
@@ -922,7 +976,7 @@ class App(ctk.CTk):
                 # Update table columns based on selected brand
                 self._update_results_table_columns(self.multi_result_table, ctrl.brand)
 
-                count_cols = {"S500","UC600","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM70","XM30","XM32","IO-R-16","PM014"}
+                count_cols = {"S500","S800","JACE9000","JACE9005","JACE9010","JACE9025","JACE9100","JACE9200","XM90","XM30","XM32","IO-R-16","PM014"}
                 COUNT_W = 70
                 OTHER_W = 105
 
@@ -950,7 +1004,7 @@ class App(ctk.CTk):
 
 
     def edit_cell(self, event):
-        # Identify clicked region
+        # Ignore double-clicks outside editable cells.
         region = self.multi_input_table.identify("region", event.x, event.y)
         if region != "cell":
             return
@@ -963,8 +1017,8 @@ class App(ctk.CTk):
         col_name = self.multi_input_table["columns"][col_index]
 
         # Get existing value
-        item = self.multi_input_table.item(row_id)
-        old_value = item["values"][col_index]
+        existing_values = list(self.multi_input_table.item(row_id, "values"))
+        old_value = existing_values[col_index] if col_index < len(existing_values) else ""
 
         # Get cell coordinates
         x, y, width, height = self.multi_input_table.bbox(row_id, col_id)
@@ -975,7 +1029,7 @@ class App(ctk.CTk):
         entry.place(x=x, y=y, width=width, height=height)
         entry.focus()
 
-        # Auto-select all text so typing overwrites the value
+        # Select the full value so typing replaces it immediately.
         entry.selection_range(0, tk.END)
         entry.icursor(tk.END)
 
@@ -988,8 +1042,10 @@ class App(ctk.CTk):
         def on_enter(event=None):
             new_value = entry.get()
             # Update value in the Treeview
-            item["values"][col_index] = new_value
-            self.multi_input_table.item(row_id, values=item["values"])
+            values = list(self.multi_input_table.item(row_id, "values"))
+            if col_index < len(values):
+                values[col_index] = new_value
+                self.multi_input_table.item(row_id, values=values)
             entry.destroy()
 
         entry.bind("<Return>", on_enter)
@@ -1033,7 +1089,7 @@ class App(ctk.CTk):
         if not selection:
             messagebox.showinfo("Duplicate Row(s)", "Select one or more rows to duplicate.")
             return
-        # Build set of existing names for fast uniqueness checks
+        # Keep duplicate names readable and unique.
         existing_names = {self.multi_input_table.item(i)["values"][0] for i in self.multi_input_table.get_children()}
         def unique_name(base):
             if base not in existing_names:
@@ -1108,7 +1164,6 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame, text="Controller & Expansion Datasheets", font=("Arial", 14, "bold")).pack(pady=(5, 10))
         # --- datasheet links ---
         datasheets = {
-            "UC600":"https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX45K-EN_06032022.pdf",
             "S500":"https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX090B-EN_04082023.pdf",
             "S800":"https://www.trane.com/content/dam/Trane/Commercial/lar/Mexico/BAS-PRD041C-EN_10272023.pdf",
             "JACE9000":"https://www.tridium.com/content/dam/tridium/en/documents/document-lists/jace/tri-jace9000-datasheet-2025-0009.pdf",
@@ -1118,7 +1173,6 @@ class App(ctk.CTk):
             "JACE9100":"https://www.tridium.com/content/dam/tridium/en/documents/document-lists/jace/tri-jace9000-datasheet-2025-0009.pdf",
             "JACE9200":"https://www.tridium.com/content/dam/tridium/en/documents/document-lists/jace/tri-jace9000-datasheet-2025-0009.pdf",
             "XM90": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
-            "XM70": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
             "XM30": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
             "XM32": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX46E-EN_03182020.pdf",
             "PM014": "https://elibrary.tranetechnologies.com/public/commercial-hvac/Literature/Installation%20Operation%20and%20Maintenance/BAS-SVX33G-EN_04012020.pdf"
